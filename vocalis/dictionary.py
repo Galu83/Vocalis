@@ -120,7 +120,9 @@ def _compiled() -> list[tuple[re.Pattern, str]]:
         if _cache["compiled"] is not None:
             return _cache["compiled"]
     rules: list[tuple[int, re.Pattern, str]] = []
-    for e in data["dictee"]:
+    known = {e["mot"] for e in data["dictee"]}
+    extra = [{"mot": w, "entendu": []} for w in ALWAYS if w not in known]
+    for e in data["dictee"] + extra:
         mot = e["mot"]
         sources = list(e["entendu"])
         if mot != mot.lower():
@@ -153,8 +155,12 @@ def apply_dictation(text: str) -> str:
     return text
 
 
+ALWAYS = ["Vocalis"]               # le nom de l'outil, toujours bien écrit
+
+
 def vocabulary() -> list[str]:
-    return [e["mot"] for e in load()["dictee"]]
+    words = [e["mot"] for e in load()["dictee"]]
+    return words + [w for w in ALWAYS if w not in words]
 
 
 def prompt_words() -> str:
@@ -171,6 +177,19 @@ def prompt_words() -> str:
 # =========================================================================== apprentissage
 def _core(word: str) -> str:
     return re.sub(rf"^{_EDGE}+|{_EDGE}+$", "", word)
+
+
+def is_plausible(old: str, new: str) -> bool:
+    """La correction pourrait être un mot mal reconnu (on demandera avant de le retenir)."""
+    o, n = _core(old), _core(new)
+    if not o or not n or o.lower() == n.lower() or len(n) < 2 or len(n) > 40:
+        return False
+    if n.isdigit() or len(n.split()) > 3 or len(o.split()) > 3:
+        return False
+    flat_o, flat_n = re.sub(r"[\s\-']", "", o.lower()), re.sub(r"[\s\-']", "", n.lower())
+    ratio = difflib.SequenceMatcher(None, flat_o, flat_n).ratio()
+    joined = len(o.split()) != len(n.split())
+    return ratio >= (0.4 if joined else 0.5)
 
 
 def is_learnable(old: str, new: str) -> bool:
@@ -195,11 +214,11 @@ def is_learnable(old: str, new: str) -> bool:
     return special or proper or joined
 
 
-def learn(old: str, new: str) -> bool:
+def learn(old: str, new: str, confirmed: bool = False) -> bool:
     """Ajoute « old » comme erreur connue de « new ». Renvoie vrai si c'est nouveau."""
     old, new = _core(old), _core(new)
     data = load()
-    if not data.get("apprendre", True):
+    if not data.get("apprendre", True) and not confirmed:
         return False
     for e in data["dictee"]:
         if e["mot"] == new:
@@ -220,9 +239,10 @@ def _words(text: str) -> list[str]:
     return text.split()
 
 
-def find_corrections(before: str, after: str, inserted: str) -> list[tuple[str, str]]:
+def find_corrections(before: str, after: str, inserted: str) -> list[tuple[str, str, bool]]:
     """Compare le texte de la case juste après le collage (before) et un peu plus
-    tard (after) : renvoie les mots du texte dicté remplacés à la main."""
+    tard (after) : renvoie les mots du texte dicté remplacés à la main, avec
+    vrai si la correction est sûre (sinon : à proposer)."""
     norm = lambda s: re.sub(r"\s+", " ", s.replace("\r", "\n")).strip()  # noqa: E731
     before, after, inserted = norm(before), norm(after), norm(inserted)
     if not inserted or before == after:
@@ -242,8 +262,19 @@ def find_corrections(before: str, after: str, inserted: str) -> list[tuple[str, 
             continue
         old, new = " ".join(a[i1:i2]), " ".join(b[j1:j2])
         if is_learnable(old, new):
-            out.append((_core(old), _core(new)))
+            out.append((_core(old), _core(new), True))
+        elif is_plausible(old, new):
+            out.append((_core(old), _core(new), False))
     return out
+
+
+def inserted_present(text: str, inserted: str, minimum: float = 0.5) -> bool:
+    """Le texte dicté est-il encore (en bonne partie) dans la case ?"""
+    words = inserted.split()
+    if not words:
+        return False
+    have = set(text.split())
+    return sum(w in have for w in words) >= minimum * len(words)
 
 
 # =========================================================================== prononciation

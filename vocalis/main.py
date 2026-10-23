@@ -48,6 +48,7 @@ class Bridge(QObject):
     plainClick = Signal(int, int, bool)          # essai : clic / double-clic en lecture
     openSettings = Signal(str)                   # ouvrir les paramètres à une page
     learned = Signal(str, str)                   # mot appris par le dictionnaire
+    suggest = Signal(str, str)                   # correction à proposer (« Retenir ? »)
     ask = Signal()                               # touche « Demander »
     askContext = Signal(object, str)             # texte trouvé pour la question
 
@@ -87,7 +88,11 @@ class App(QObject):
                                  install_cb=self._install_assistant)
         from .learning import CorrectionWatcher
         self.learner = CorrectionWatcher(self.reading.uia,
-                                         lambda old, new: self.bridge.learned.emit(old, new))
+                                         lambda old, new: self.bridge.learned.emit(old, new),
+                                         lambda old, new: self.bridge.suggest.emit(old, new))
+        from .ui_learn import LearnPrompt
+        self.learn_prompt = LearnPrompt()
+        self.learn_prompt.answered.connect(self._on_learn_answer)
         # Alt + clic pendant une lecture : relancer au paragraphe cliqué.
         self.alt_hook = AltClickHook(lambda x, y: self.bridge.altClick.emit(x, y),
                                      lambda x, y, d: self.bridge.plainClick.emit(x, y, d))
@@ -102,6 +107,7 @@ class App(QObject):
         b.plainClick.connect(self.reading.plain_click)
         b.openSettings.connect(self.open_settings)
         b.learned.connect(self._on_learned)
+        b.suggest.connect(lambda old, new: self.learn_prompt.ask(old, new, self.pill.near))
         b.ask.connect(self._on_ask)
         b.askContext.connect(self._on_ask_context)
         b.updateFound.connect(self._on_update_found)
@@ -195,6 +201,12 @@ class App(QObject):
             f"« {new} » sera écrit ainsi (au lieu de « {old} »).\n"
             "Paramètres > Dictionnaire pour le modifier.",
             QSystemTrayIcon.Information, 5000)
+
+    def _on_learn_answer(self, old: str, new: str, yes: bool) -> None:
+        from . import dictionary
+        log.info("Retenir « %s » -> « %s » : %s", old, new, "oui" if yes else "non")
+        if yes and dictionary.learn(old, new, confirmed=True):
+            self.pill.show_state("done", f"« {new} » ajouté au dictionnaire", autohide_ms=2000)
 
     def open_settings(self, page: str = "") -> None:
         from .settings_ui import SettingsWindow
