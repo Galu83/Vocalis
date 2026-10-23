@@ -216,6 +216,17 @@ def build_messages(action: dict, context: str, lang_name: str, question: str = "
         msgs.append({"role": "user", "content": prompt})
         return msgs, temp, model
     instruction = action.get("consigne", "").strip() or action["nom"]
+    if len(instruction) > 180 or instruction.count("\n") >= 2:
+        # Consigne longue (un rôle, des règles…) : ce sont des instructions, et le texte
+        # sélectionné est ce qu'il faut traiter (pas une question sur la consigne).
+        system = (instruction + "\n\nApply these instructions to the text given by the "
+                  "user. Output only the final result, ready to use: no introduction, no "
+                  "comment, no quotes.")
+        user = f"<text>\n{context}\n</text>"
+        if question:
+            user += f"\n\n{question}"
+        return ([{"role": "system", "content": system},
+                 {"role": "user", "content": user}], temp, model)
     if question:
         instruction += " " + question
     if action["type"] == "transformer":

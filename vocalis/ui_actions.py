@@ -143,6 +143,9 @@ class ActionEditor(QDialog):
         self.instruction.setPlaceholderText("ex. Rends ce texte plus poli sans changer le sens.")
         self.instruction.setFixedHeight(64)
         lay.addWidget(self.instruction)
+        lay.addWidget(_hint("Une phrase courte (« Rends ce texte plus poli ») ou des consignes "
+                            "complètes (un rôle, des règles) : dans les deux cas, elles sont "
+                            "appliquées au texte sélectionné."))
 
         lay.addWidget(QLabel("<b>Le résultat</b>"))
         self.rb_answer = QRadioButton("💬 S'affiche dans la carte (répondre, résumer, expliquer…)")
