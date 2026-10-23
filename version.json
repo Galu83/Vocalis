@@ -1,5 +1,5 @@
 {
-  "version": "2.3.0",
+  "version": "2.3.1",
   "branch": "main",
   "notes": "• La fenêtre de dictée s'ouvre toujours juste sous l'endroit où tu écris (au-dessus s'il n'y a pas la place).\n• « Demander » (Ctrl + Alt + Maj + L) : la réponse s'affiche juste au-dessus du texte sélectionné.\n• Page État : le bouton « Réparer » passe en rouge vif quand il faut réparer."
 }

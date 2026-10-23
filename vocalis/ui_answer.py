@@ -295,12 +295,24 @@ class AskController(QObject):
         self._reset_answer()
         self.card.start(shown)
         conv = self.conv
+        log.info("Demander (%s, %d caractères de texte) : %s", conv.model, len(conv.context),
+                 question)
 
         def work():
+            import time
+            t0 = time.monotonic()
+            first = []
+
+            def piece(p):
+                if not first:
+                    first.append(time.monotonic() - t0)
+                    log.info("Demander : premiers mots en %.1f s", first[0])
+                self._piece.emit(gen, p)
             try:
                 conv.check()
-                text = assistant.run_question(conv, question,
-                                              lambda piece: self._piece.emit(gen, piece))
+                text = assistant.run_question(conv, question, piece)
+                log.info("Demander : réponse de %d caractères en %.1f s", len(text),
+                         time.monotonic() - t0)
                 self._done.emit(gen, text)
             except assistant.NotInstalled as exc:
                 log.info("Assistant absent : %s", exc)

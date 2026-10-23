@@ -254,6 +254,7 @@ class UiaReader(threading.Thread):
                     if rects:
                         # sélection longue : on garde ses premières lignes
                         rects = rects[:6]
+                        log.info("Position : sélection ou curseur (UIA)")
                         left = min(r[0] for r in rects)
                         top = min(r[1] for r in rects)
                         right = max(r[0] + r[2] for r in rects)
@@ -263,10 +264,12 @@ class UiaReader(threading.Thread):
                 log.debug("Position du curseur illisible", exc_info=True)
         caret = win32_caret_native()
         if caret is not None:
+            log.info("Position : curseur de texte Windows")
             return caret
         try:
             r = ctrl.BoundingRectangle
             if 0 < r.height() <= 120 and r.width() > 0:      # petite case de saisie
+                log.info("Position : case de saisie")
                 return (r.left, r.top, r.width(), r.height())
         except Exception:
             pass

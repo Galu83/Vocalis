@@ -543,14 +543,18 @@ class App(QObject):
 
         from . import screenmap
         r = None
+        t = time.monotonic()
         try:
-            r = self.reading.uia.caret_rect().result(timeout=0.35)
+            r = self.reading.uia.caret_rect().result(timeout=0.8)
         except Exception:
             r = None
         if r:
             rect = screenmap.to_logical_rect(*r)
             if QGuiApplication.screenAt(rect.center().toPoint()) is not None:
+                log.info("Position trouvée en %.2f s : %s", time.monotonic() - t,
+                         tuple(round(v) for v in rect.getRect()))
                 return rect
+        log.info("Position introuvable (%.2f s) : près de la souris", time.monotonic() - t)
         return screenmap.mouse_rect()
 
     def _languages(self) -> list[str]:
