@@ -37,6 +37,15 @@ Pour désinstaller : **Paramètres Windows > Applications > Vocalis > Désinstal
 3. La réponse s'écrit dans une petite fenêtre et elle est lue dès la première phrase. Boutons : **Pause / Lire**, **Copier**, **Insérer** (colle la réponse là où est le curseur).
 4. Pendant que la fenêtre est ouverte, la même touche pose une **question de suite** sur le même texte.
 
+### Actions
+
+Les boutons de « Demander » sont des **actions** : 💬 celles qui répondent (Résumer, Expliquer, Points clés, Répondre) et ✏️ celles qui **réécrivent** le texte sélectionné (Corriger, Plus poli, Plus court, Ton professionnel, Liste à puces). Pour une action ✏️, le résultat s'affiche d'abord ; **Remplacer** le met à la place de la sélection (Ctrl + Z pour annuler).
+
+- **Dire son nom** suffit : « plus poli ».
+- **☆ Garder comme action** : après une question posée à voix haute, ce bouton de la réponse en fait un nouveau bouton.
+- **Paramètres > Actions** : choisir les boutons affichés, en créer, les modifier, et **Essayer** sur un texte d'exemple.
+- **Mode avancé** (dans chaque action) : prompt complet écrit à la main, avec les variables {texte}, {question} et {langue}, instructions système, créativité et choix du modèle.
+
 L'assistant fonctionne sur ton PC, sans Internet ni compte : Qwen 7B avec une carte NVIDIA, Qwen 3B (environ 2 Go) sinon. S'il manque, la fenêtre propose de l'installer.
 
 ## Dictionnaire

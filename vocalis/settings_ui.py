@@ -449,6 +449,7 @@ class SettingsWindow(QWidget):
         self.stack = QStackedWidget()
         pages = [("État", self._page_state), ("Raccourcis", self._page_hotkeys),
                  ("Dictée", self._page_dictation), ("Dictionnaire", self._page_dictionary),
+                 ("Actions", self._page_actions),
                  ("Nettoyage", self._page_cleaning),
                  ("Lecture", self._page_reading), ("Général", self._page_general)]
         self.page_index = {}
@@ -497,6 +498,9 @@ class SettingsWindow(QWidget):
     def show_page(self, page: str) -> None:
         """Ouvre une page (« voix » : Lecture, sur le choix des narrateurs ;
         « dictionnaire », « prononciation »)."""
+        if page == "actions":
+            self.nav.setCurrentRow(self.page_index["Actions"])
+            return
         if page in ("dictionnaire", "prononciation"):
             i = self.page_index["Dictionnaire"]
             self.nav.setCurrentRow(i)
@@ -1005,6 +1009,24 @@ class SettingsWindow(QWidget):
             self.lbl_pron.setText(f"Erreur : {res}" if isinstance(res, Exception) else "")
 
         run_bg(speak, done)
+
+    # ------------------------------------------------------------------ page Actions
+    def _page_actions(self) -> QWidget:
+        from .ui_actions import ActionsPanel
+        w, lay = self._page("Actions", "Les boutons de « Demander » : sélectionne un texte, "
+                            "appuie sur la touche, puis clique sur un bouton ou dis son nom.")
+        frame, c = card("Mes actions", "Coche celles qui apparaissent comme boutons (les plus "
+                        "utilisées en premier). Double-clic pour modifier. 💬 = la réponse "
+                        "s'affiche et elle est lue ; ✏️ = le texte sélectionné est remplacé, "
+                        "après aperçu. Les actions sont enregistrées tout de suite.")
+        self.actions_panel = ActionsPanel(self.cfg, w)
+        c.addWidget(self.actions_panel)
+        c.addWidget(hint("Astuce : après une question posée à voix haute, le bouton « ☆ Garder "
+                         "comme action » de la réponse la transforme en bouton. Pour tout "
+                         "régler toi-même, ouvre une action et coche « Mode avancé »."))
+        lay.addWidget(frame)
+        lay.addStretch(1)
+        return w
 
     def _dictionary_changed(self) -> bool:
         return self._collect_dictionary() != self.dict_original

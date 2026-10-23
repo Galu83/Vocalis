@@ -74,6 +74,7 @@ class Pill(QWidget):
         self.languages: tuple[str, ...] = ("fr", "pt", "en", "de")   # langues proposées
         self.session = False            # dictée en cours : l'encadré reste ouvert
         self.actions: list[tuple[str, str]] = []   # « Demander » : boutons tout prêts
+        self.more: list[tuple[str, str]] = []      # actions derrière « … »
         self.selection = ""             # texte sélectionné au début de la dictée
         self.translation = ""           # aperçu de la traduction
         self._doc_sel = QTextDocument()
@@ -161,6 +162,21 @@ class Pill(QWidget):
         f = QFont("Segoe UI", 9)
         f.setBold(True)
         return f
+
+    def fit_actions(self, items: list[tuple[str, str]]) -> None:
+        """Boutons de « Demander » : autant qu'il en tient, le reste derrière « … »."""
+        fm = QFontMetrics(self._chip_font())
+        room = PANEL_W - 2 * PAD - 12
+        shown, used = [], 0
+        for i, (key, label) in enumerate(items):
+            w = fm.horizontalAdvance(label) + 26
+            rest = len(items) - i - 1
+            if used + w + (fm.horizontalAdvance("…") + 26 if rest else 0) > room:
+                break
+            shown.append((key, label))
+            used += w
+        self.more = items[len(shown):]
+        self.actions = shown + ([("__more__", "…")] if self.more else [])
 
     def _chip_rects(self) -> list[tuple[str, QRectF]]:
         """Langues cliquables en bas de l'encadré (ou boutons de « Demander »)."""

@@ -164,14 +164,32 @@ class Conversation:
 
     def ask(self, question: str) -> Iterator[str]:
         """Pose la question ; renvoie la réponse morceau par morceau."""
-        self._stop = False
         first = not self.messages
         content = self._first_user(question) if first else question
         msgs = [self._system(), *self.messages, {"role": "user", "content": content}]
-        body = {"model": self.model, "stream": True, "keep_alive": "30m",
-                "options": {"temperature": 0.3, "num_ctx": self._num_ctx()},
+        answer = yield from self._stream(msgs, 0.3, self.model)
+        self.messages += [{"role": "user", "content": content},
+                          {"role": "assistant", "content": answer}]
+
+    def run_action(self, action: dict, extra: str = "") -> Iterator[str]:
+        """Applique une action au texte ; renvoie le résultat morceau par morceau."""
+        from .actions import build_messages
+        from .languages import lower_name
+        msgs, temp, model = build_messages(
+            action, self.context, lower_name(self.lang) if self.lang else "français", extra,
+            self._system()["content"])
+        model = model or self.model
+        answer = yield from self._stream(msgs, temp, model)
+        # Pour les questions de suite : la conversation continue sur ce résultat.
+        self.messages = [m for m in msgs if m["role"] != "system"] + \
+            [{"role": "assistant", "content": answer}]
+
+    def _stream(self, msgs: list[dict], temperature: float, model: str):
+        self._stop = False
+        body = {"model": model, "stream": True, "keep_alive": "30m",
+                "options": {"temperature": temperature, "num_ctx": self._num_ctx()},
                 "messages": msgs}
-        if "qwen3" in self.model:
+        if "qwen3" in model:
             body["think"] = False
         answer = ""
         with requests.post(f"{self.url}/api/chat", json=body, stream=True,
@@ -191,13 +209,14 @@ class Conversation:
                     yield piece
                 if msg.get("done"):
                     break
-        self.messages += [{"role": "user", "content": content},
-                          {"role": "assistant", "content": answer}]
+        return answer
 
 
-def run_question(conv: Conversation, question: str, on_piece: Callable[[str], None]) -> str:
+def run_question(conv: Conversation, question: str, on_piece: Callable[[str], None],
+                 action: dict | None = None) -> str:
     out = ""
-    for piece in conv.ask(question):
+    gen = conv.run_action(action, question) if action is not None else conv.ask(question)
+    for piece in gen:
         out += piece
         on_piece(piece)
     return out

@@ -50,7 +50,7 @@ class Bridge(QObject):
     learned = Signal(str, str)                   # mot appris par le dictionnaire
     suggest = Signal(str, str)                   # correction à proposer (« Retenir ? »)
     ask = Signal()                               # touche « Demander »
-    askContext = Signal(object, str)             # texte trouvé pour la question
+    askContext = Signal(object, str, bool)       # texte trouvé (et s'il est sélectionné)
 
 
 # =========================================================================== application
@@ -623,12 +623,13 @@ class App(QObject):
         if ask:
             if not followup:
                 self._ask_rect = rect
-            from .assistant import PRESETS
             self.session.ask_mode = True
             self._ctx_pending = None
             self._pending_q = None
             if not followup:
-                self.pill.actions = [(k, label) for k, label, _ in PRESETS]
+                from . import actions
+                shown, more = actions.visible(6)
+                self.pill.fit_actions([(a["id"], a["nom"]) for a in shown + more])
                 self._ctx_pending = self.session
                 self._read_context(self.session, pref)
             self.pill.set_language(self.cfg["dictee"].get("langue_forcee", "") or pref)
@@ -668,6 +669,7 @@ class App(QObject):
                 text = (uia.selected_text().result(timeout=1.5) or "").strip()
             except Exception:
                 pass
+            selected = bool(text)
             if not text:
                 try:
                     doc = uia.paragraphs_at(nx, ny).result(timeout=2.5)
@@ -676,14 +678,15 @@ class App(QObject):
                 except Exception:
                     pass
             log.info("Demander : texte de %d caractère(s)", len(text))
-            self.bridge.askContext.emit(session, text)
+            self.bridge.askContext.emit(session, text, selected)
 
         threading.Thread(target=work, daemon=True, name="demander-texte").start()
 
-    def _on_ask_context(self, session, text: str) -> None:
+    def _on_ask_context(self, session, text: str, selected: bool = False) -> None:
         if session is not getattr(self, "_ctx_pending", None):
             return                                  # question annulée entre-temps
         self._ctx_pending = None
+        self._ask_selected = selected
         lang = self.cfg["dictee"].get("langue_preferee", "") or self._languages()[0]
         self.ask.begin(text, lang)
         if text and session.is_alive():
@@ -695,30 +698,35 @@ class App(QObject):
     def _on_question(self, payload: str) -> None:
         import json
 
-        from .assistant import PRESET_PROMPTS, PRESETS
+        from . import actions
         raw, lang, preset = json.loads(payload)
         self.pill.set_language("")
         self.pill.end_session()
         pref = self.cfg["dictee"].get("langue_preferee", "") or self._languages()[0]
-        if preset in PRESET_PROMPTS:
-            question = PRESET_PROMPTS[preset]
-            shown = dict((k, label) for k, label, _ in PRESETS)[preset]
-            if raw.strip():                 # quelques mots dits avant le clic : précision
-                question += " " + raw.strip()
-                shown += " · " + raw.strip()
-            lang = pref
-        elif raw.strip():
-            question = shown = raw.strip()
+        raw = raw.strip()
+        action = actions.get(preset) if preset else None
+        if action is None and raw:
+            action = actions.match_spoken(raw)       # « plus poli » dit à voix haute
+            if action is not None:
+                log.info("Action reconnue à la voix : %s", action["nom"])
+                raw = ""
+        if action is not None:
+            question = raw                  # quelques mots dits avant le clic : précision
+            shown = action["nom"] + (f" · {raw}" if raw else "")
+            lang = pref if not raw else lang
+        elif raw:
+            question = shown = raw
         else:
             self.pill.show_state("done", "Rien entendu", autohide_ms=1500)
             return
         self.pill._hide()
         if not self.ask.open:
             self.ask.card.place_near(getattr(self, "_ask_rect", None))
+        args = (question, shown, lang or pref, action, getattr(self, "_ask_selected", False))
         if getattr(self, "_ctx_pending", None) is not None:
-            self._pending_q = (question, shown, lang or pref)
+            self._pending_q = args
             return
-        self.ask.ask(question, shown, lang or pref)
+        self.ask.ask(*args)
 
     def _install_assistant(self) -> None:
         from .assistant import assistant_model
@@ -733,10 +741,30 @@ class App(QObject):
         self.ask.card.show_message("Installation en cours… Quand elle est finie, appuie de "
                                    "nouveau sur la touche « Demander ».")
 
+    def _actions_menu(self) -> None:
+        """« … » : les autres actions, et un lien vers la page Actions."""
+        from PySide6.QtGui import QAction, QCursor
+        menu = QMenu()
+        for key, label in self.pill.more:
+            act = QAction(label, menu)
+            act.triggered.connect(lambda _=False, k=key: self._busy() and
+                                  self.session.set_target(k))
+            menu.addAction(act)
+        menu.addSeparator()
+        act = QAction("Gérer les actions…", menu)
+        act.triggered.connect(lambda: (self._cancel_dictation(), self.open_settings("actions")))
+        menu.addAction(act)
+        self._menu_ref = menu
+        menu.popup(QCursor.pos())
+
     def _pick_target(self, lang: str) -> None:
         """Clic sur une langue dans l'encadré : le texte validé sera traduit dans
-        cette langue (nouveau clic sur la même langue : plus de traduction)."""
+        cette langue (nouveau clic sur la même langue : plus de traduction).
+        Avec « Demander » : clic sur une action (« … » ouvre les autres)."""
         if self._busy():
+            if lang == "__more__" and self.session.ask_mode:
+                self._actions_menu()
+                return
             self.session.set_target(lang)
 
     def _read_selection(self, session) -> None:

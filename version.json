@@ -1,5 +1,5 @@
 {
-  "version": "2.4.0",
+  "version": "2.5.0",
   "branch": "main",
-  "notes": "• Pendant que Vocalis lit (ou répond avec « Demander »), la musique et les vidéos (YouTube, Spotify…) se mettent en pause, puis repartent à la fin. Réglable dans Paramètres > Lecture.\n• Dictionnaire : les noms propres mal entendus et corrigés à la main sont mieux retenus."
+  "notes": "• Nouveau : les Actions de « Demander ». Boutons qui répondent (Résumer, Expliquer…) ou qui réécrivent le texte sélectionné (Corriger, Plus poli…), avec aperçu puis « Remplacer ».\n• Dis le nom d'une action, ou garde une question comme bouton avec « ☆ Garder comme action ».\n• Paramètres > Actions, avec un mode avancé pour écrire un prompt complet."
 }

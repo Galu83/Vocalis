@@ -44,6 +44,8 @@ class AnswerCard(QWidget):
     copyClicked = Signal()
     insertClicked = Signal()
     installClicked = Signal()
+    replaceClicked = Signal()
+    keepClicked = Signal()
 
     def __init__(self, hotkey_label: str = ""):
         super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
@@ -91,13 +93,17 @@ class AnswerCard(QWidget):
 
         btns = QHBoxLayout()
         btns.setSpacing(6)
+        self.btn_replace = QPushButton("Remplacer")
+        self.btn_replace.setObjectName("primary")
         self.btn_play = QPushButton("⏸ Pause")
         self.btn_copy = QPushButton("Copier")
         self.btn_insert = QPushButton("Insérer")
+        self.btn_keep = QPushButton("☆ Garder comme action")
         self.btn_install = QPushButton("Installer l'assistant")
         self.btn_install.setObjectName("primary")
-        for b, sig in ((self.btn_play, self.playClicked), (self.btn_copy, self.copyClicked),
-                       (self.btn_insert, self.insertClicked),
+        for b, sig in ((self.btn_replace, self.replaceClicked),
+                       (self.btn_play, self.playClicked), (self.btn_copy, self.copyClicked),
+                       (self.btn_insert, self.insertClicked), (self.btn_keep, self.keepClicked),
                        (self.btn_install, self.installClicked)):
             b.setCursor(Qt.PointingHandCursor)
             b.clicked.connect(sig.emit)
@@ -110,20 +116,30 @@ class AnswerCard(QWidget):
         self.set_mode("answer")
 
     # ------------------------------------------------------------------ contenu
-    def set_mode(self, mode: str) -> None:
-        """answer : réponse normale ; install : l'assistant manque."""
-        answer = mode == "answer"
-        for b in (self.btn_play, self.btn_copy, self.btn_insert):
-            b.setVisible(answer)
-        self.btn_install.setVisible(not answer)
+    def set_mode(self, mode: str, can_replace: bool = False, speak: bool = True) -> None:
+        """answer : réponse lue ; transform : texte réécrit (Remplacer) ;
+        install : l'assistant manque."""
+        self.mode = mode
+        shown = mode in ("answer", "transform")
+        self.btn_replace.setVisible(mode == "transform" and can_replace)
+        self.btn_play.setVisible(shown and speak)
+        self.btn_copy.setVisible(shown)
+        self.btn_insert.setVisible(shown and not (mode == "transform" and can_replace))
+        self.btn_keep.setVisible(False)
+        self.btn_install.setVisible(mode == "install")
 
-    def start(self, question: str) -> None:
-        self.set_mode("answer")
+    def show_keep(self, show: bool) -> None:
+        self.btn_keep.setVisible(show)
+        self.adjustSize()
+
+    def start(self, question: str, mode: str = "answer", can_replace: bool = False,
+              speak: bool = True) -> None:
+        self.set_mode(mode, can_replace, speak)
         self.lbl_question.setText(question)
         self.lbl_question.setVisible(bool(question))
         self.text.clear()
-        self.set_status("Réflexion…")
-        self.set_playing(True)
+        self.set_status("Réécriture…" if mode == "transform" else "Réflexion…")
+        self.set_playing(speak)
         self._fit()
         self.show_near()
 
@@ -254,6 +270,12 @@ class AskController(QObject):
         self.card.copyClicked.connect(self._copy)
         self.card.insertClicked.connect(self._insert)
         self.card.installClicked.connect(self._install)
+        self.card.replaceClicked.connect(self._replace)
+        self.card.keepClicked.connect(self._keep)
+        self.action: dict | None = None
+        self.question = ""
+        self.speak = True
+        self.can_replace = False
         self._piece.connect(self._on_piece)
         self._done.connect(self._on_done)
         self._failed.connect(self._on_failed)
@@ -285,21 +307,28 @@ class AskController(QObject):
         self.conv = assistant.Conversation(self.cfg, context, lang)
         threading.Thread(target=self.conv.prefill, daemon=True, name="assistant-pre").start()
 
-    def ask(self, question: str, shown: str, lang: str = "") -> None:
+    def ask(self, question: str, shown: str, lang: str = "", action: dict | None = None,
+            can_replace: bool = False) -> None:
+        """Question libre (action None) ou action (question = précision dite en plus)."""
         if self.conv is None:
             self.begin("", lang)
         if lang:
             self.conv.lang = lang
         self.stop_speaking()
-        if self.media is not None:
+        self.action, self.question = action, question
+        transform = action is not None and action["type"] == "transformer"
+        self.speak = action["lire"] if action is not None else True
+        self.can_replace = can_replace and transform
+        if self.media is not None and self.speak:
             self.media.hold("demander")      # la musique s'arrête dès la question posée
         self._gen += 1
         gen = self._gen
         self._reset_answer()
-        self.card.start(shown)
+        self.card.start(shown, "transform" if transform else "answer", self.can_replace,
+                        self.speak)
         conv = self.conv
-        log.info("Demander (%s, %d caractères de texte) : %s", conv.model, len(conv.context),
-                 question)
+        log.info("Demander (%s, %d caractères de texte) : %s%s", conv.model,
+                 len(conv.context), f"[{action['nom']}] " if action else "", question)
 
         def work():
             import time
@@ -313,7 +342,7 @@ class AskController(QObject):
                 self._piece.emit(gen, p)
             try:
                 conv.check()
-                text = assistant.run_question(conv, question, piece)
+                text = assistant.run_question(conv, question, piece, action)
                 log.info("Demander : réponse de %d caractères en %.1f s", len(text),
                          time.monotonic() - t0)
                 self._done.emit(gen, text)
@@ -349,7 +378,8 @@ class AskController(QObject):
         if gen != self._gen:
             return
         self.raw += piece
-        self.text = assistant.clean_for_speech(self.raw)
+        transform = self.action is not None and self.action["type"] == "transformer"
+        self.text = self.raw.strip("\n") if transform else assistant.clean_for_speech(self.raw)
         self.card.set_text(self.text)
         self.card.set_status("")
         self._maybe_speak()
@@ -361,6 +391,14 @@ class AskController(QObject):
         if not self.text.strip():
             self.card.show_message("(Pas de réponse.)")
             return
+        if self.action is not None:
+            from . import actions
+            actions.count_use(self.action["id"])
+        elif self.question and len(self.conv.messages) <= 2:
+            self.card.show_keep(True)        # question libre réussie : à garder ?
+        if self.card.mode == "transform":
+            self.card.set_status("Aperçu : rien n'est encore remplacé" if self.can_replace
+                                 else "")
         self._maybe_speak()
 
     def _on_failed(self, gen: int, err: str) -> None:
@@ -390,6 +428,8 @@ class AskController(QObject):
         return self.spoken_upto, self.spoken_upto + cut
 
     def _maybe_speak(self) -> None:
+        if not self.speak:
+            return
         if self.muted or (self.player is not None and self.player.playing):
             return
         while True:
@@ -483,6 +523,25 @@ class AskController(QObject):
             winutil.paste_text(self.text.strip())
             self.card.set_status("Inséré")
             QTimer.singleShot(1500, lambda: self.card.set_status(""))
+
+    def _replace(self) -> None:
+        """Remplace le texte sélectionné (toujours sélectionné dans l'application :
+        la carte ne prend jamais le clavier). Ctrl + Z l'annule."""
+        if not self.text.strip():
+            return
+        winutil.paste_text(self.text.strip("\n"))
+        log.info("Demander : texte remplacé (%d caractères)", len(self.text))
+        self.card.set_status("Remplacé · Ctrl + Z pour annuler")
+        gen = self._gen
+        QTimer.singleShot(1800, lambda: self.close() if self._gen == gen else None)
+
+    def _keep(self) -> None:
+        from .ui_actions import KeepDialog
+        self._keep_dialog = KeepDialog(self.question)
+        self._keep_dialog.saved.connect(
+            lambda name: (self.card.show_keep(False),
+                          self.card.set_status(f"Action « {name} » ajoutée")))
+        self._keep_dialog.show_centered(self.card)
 
     def _install(self) -> None:
         if self.install_cb is not None:
