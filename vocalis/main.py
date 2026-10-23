@@ -261,6 +261,13 @@ class App(QObject):
     def check_updates(self, manual: bool = False) -> None:
         """Cherche une nouvelle version sur GitHub (en arrière-plan)."""
         from . import updates
+        from .hardware import offline
+        if offline():
+            log.info("Mode test hors ligne : pas de recherche de mise à jour")
+            if manual:
+                self.tray.showMessage("Vocalis", "Mode test hors ligne : pas de recherche de "
+                                      "mise à jour.", QSystemTrayIcon.Information, 3000)
+            return
         if not manual and (not updates.installed_copy() or
                            not self.cfg.get("general", {}).get("mises_a_jour_auto", True)):
             return
@@ -400,6 +407,9 @@ class App(QObject):
         engine = getattr(self, "engine", "")
         short = {"whisper": "Whisper", "parakeet": "Parakeet", "windows": "Windows"}
         status = f"Prêt · {ENGINES.get(engine, '')}" if ready else "Chargement du moteur…"
+        from .hardware import test_label
+        if test_label():
+            status += "\n" + test_label()
         state = {
             "title": f"Vocalis {__version__}",
             "status": status,
@@ -889,6 +899,9 @@ def main() -> None:
         except Exception:
             log.exception("Réglages par défaut non écrits")
     log.info("Démarrage de Vocalis %s %s", __version__, sys.argv[1:])
+    from .hardware import test_label
+    if test_label():
+        log.info("%s", test_label())
     qapp = QApplication.instance() or QApplication(sys.argv)
     qapp.setQuitOnLastWindowClosed(False)
     qapp.setApplicationName("Vocalis")

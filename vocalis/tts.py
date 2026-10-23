@@ -249,6 +249,9 @@ class Tts:
         v = self.voice_for(lang)
         if v.engine == "edge":
             try:
+                from .hardware import offline
+                if offline():
+                    raise RuntimeError("pas d'Internet (mode test hors ligne) il y a peu")
                 if time.monotonic() < getattr(self, "_edge_down_until", 0.0):
                     raise RuntimeError("service en ligne injoignable il y a peu")
                 return self._synth_edge(v, text, speed)

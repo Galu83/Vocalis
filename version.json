@@ -1,5 +1,5 @@
 {
-  "version": "2.5.3",
+  "version": "2.5.4",
   "branch": "main",
-  "notes": "• Actions : des consignes longues (un rôle, des règles de rédaction) sont appliquées au texte sélectionné.\n• Réécriture dans la langue du texte, reprise automatique si l'assistant glisse en chinois.\n• « Rechercher une mise à jour » voit tout de suite la dernière version."
+  "notes": "• Sans carte graphique : la traduction utilise le petit modèle de l'assistant, sans Internet.\n• Actions : des consignes longues (un rôle, des règles de rédaction) sont appliquées au texte sélectionné."
 }

@@ -8,6 +8,8 @@ import time
 
 import requests
 
+from .hardware import offline, ollama_options
+
 log = logging.getLogger(__name__)
 
 from .languages import LANGS  # noqa: E402
@@ -32,6 +34,12 @@ class Translator:
     def __init__(self, cfg: dict):
         c = cfg["nettoyage"]
         self.model = c["modele"]
+        from .hardware import has_nvidia_gpu
+        if not has_nvidia_gpu():
+            # Sans carte graphique : le petit modèle de l'assistant (installé pour
+            # « Demander ») traduit aussi, sans Internet.
+            from .assistant import assistant_model
+            self.model = assistant_model(cfg)
         self.url = c["url"].rstrip("/")
         self._cache: dict[tuple[str, str], str] = {}
         self._lock = threading.Lock()
@@ -60,7 +68,8 @@ class Translator:
             user = f"Translate into {name} (and only {name}):\n" + user
         body = {
             "model": self.model, "stream": False, "keep_alive": "30m",
-            "options": {"temperature": 0, "num_ctx": 4096 if len(text) < 5000 else 8192},
+            "options": ollama_options({"temperature": 0,
+                                       "num_ctx": 4096 if len(text) < 5000 else 8192}),
             "messages": [
                 {"role": "system", "content": PROMPT.format(target=name,
                                                             extra=EXTRA.get(target, ""))},
@@ -78,6 +87,8 @@ class Translator:
         return out
 
     def _edge(self, text: str, target: str) -> str:
+        if offline():
+            raise RuntimeError("pas d'Internet (mode test hors ligne)")
         t, token = self._edge_token
         if not token or time.monotonic() - t > 8 * 60:
             r = requests.get("https://edge.microsoft.com/translate/auth", timeout=8)

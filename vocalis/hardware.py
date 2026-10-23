@@ -6,11 +6,53 @@ import shutil
 import subprocess
 
 _GPU: bool | None = None
+_TEST: dict | None = None
+
+
+def test_flags() -> dict:
+    """Mode test (section [test] de config.toml, absente par défaut) :
+    sans_carte_graphique = true -> Vocalis se comporte comme sur un PC sans NVIDIA ;
+    hors_ligne = true -> Vocalis n'utilise pas Internet (voix Edge, traduction en
+    ligne, dictée Windows, mises à jour)."""
+    global _TEST
+    if _TEST is None:
+        _TEST = {}
+        try:
+            import tomllib
+            from .config import CONFIG_PATH
+            with open(CONFIG_PATH, "rb") as f:
+                _TEST = dict(tomllib.load(f).get("test", {}) or {})
+        except Exception:
+            _TEST = {}
+    return _TEST
+
+
+def simulate_no_gpu() -> bool:
+    return bool(test_flags().get("sans_carte_graphique", False))
+
+
+def offline() -> bool:
+    return bool(test_flags().get("hors_ligne", False))
+
+
+def test_label() -> str:
+    parts = (["sans carte graphique"] if simulate_no_gpu() else []) + \
+        (["hors ligne"] if offline() else [])
+    return "Mode test : " + ", ".join(parts) if parts else ""
+
+
+def ollama_options(options: dict) -> dict:
+    """Sans carte graphique (simulée) : Ollama calcule sur le processeur."""
+    if simulate_no_gpu():
+        options["num_gpu"] = 0
+    return options
 
 
 def has_nvidia_gpu() -> bool:
     """Carte NVIDIA avec un pilote assez récent (570+) ?"""
     global _GPU
+    if simulate_no_gpu():
+        return False
     if _GPU is not None:
         return _GPU
     _GPU = False

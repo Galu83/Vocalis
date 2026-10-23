@@ -119,6 +119,10 @@ class WindowsDictationSession(DictationSession):
     # ------------------------------------------------------------------ déroulement
     def run(self) -> None:
         import asyncio
+        from .hardware import offline
+        if offline():
+            self.on_state("error", "Pas de connexion : la dictée Windows a besoin d'Internet")
+            return
         try:
             asyncio.run(self._main())
         except Exception as exc:

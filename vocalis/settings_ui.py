@@ -305,7 +305,12 @@ def check_components(cfg: dict) -> list[tuple[str, str, str]]:
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     engine = resolve_engine(cfg)
     # carte graphique
+    from .hardware import simulate_no_gpu, test_label
+    if test_label():
+        out.append(("Mode test", "warn", test_label() + " (section [test] de config.toml)"))
     try:
+        if simulate_no_gpu():
+            raise RuntimeError("simulée absente")
         r = subprocess.run(["nvidia-smi", "--query-gpu=name,driver_version,memory.total",
                             "--format=csv,noheader"], capture_output=True, text=True,
                            timeout=10, creationflags=flags)

@@ -15,6 +15,8 @@ from typing import Callable, Iterator
 
 import requests
 
+from .hardware import ollama_options
+
 log = logging.getLogger(__name__)
 
 CPU_MODEL = "qwen2.5:3b"
@@ -169,8 +171,8 @@ class Conversation:
             if not ollama_up(self.url) or not model_present(self.url, self.model):
                 return
             body = {"model": self.model, "stream": False, "keep_alive": "30m",
-                    "options": {"num_predict": 1, "temperature": 0.3,
-                                "num_ctx": self._num_ctx()},
+                    "options": ollama_options({"num_predict": 1, "temperature": 0.3,
+                                               "num_ctx": self._num_ctx()}),
                     "messages": [self._system(),
                                  {"role": "user", "content": self._first_user("")}]}
             requests.post(f"{self.url}/api/chat", json=body, timeout=180)
@@ -246,7 +248,8 @@ class Conversation:
                 allow_cjk: bool = True):
         self._stop = False
         body = {"model": model, "stream": True, "keep_alive": "30m",
-                "options": {"temperature": temperature, "num_ctx": self._num_ctx()},
+                "options": ollama_options({"temperature": temperature,
+                                           "num_ctx": self._num_ctx()}),
                 "messages": msgs}
         if "qwen3" in model:
             body["think"] = False

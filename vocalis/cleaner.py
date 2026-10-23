@@ -56,6 +56,11 @@ class Cleaner:
         self.model = c["modele"]
         self.url = c["url"].rstrip("/")
         self.timeout = float(c["delai_max_secondes"])
+        from .hardware import simulate_no_gpu
+        if simulate_no_gpu():
+            # Comme un PC sans carte NVIDIA : le modèle de correction n'y est pas installé.
+            log.info("Mode test : correction du texte désactivée (pas de carte graphique)")
+            self.enabled = False
 
     def available(self) -> bool:
         try:
