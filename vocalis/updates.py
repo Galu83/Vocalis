@@ -24,8 +24,12 @@ log = logging.getLogger(__name__)
 
 REPO = "Galu83/Vocalis"
 VERSION_URL = f"https://raw.githubusercontent.com/{REPO}/main/version.json"
-# Le code publié est celui de la branche main (version.json en fait partie).
-ZIP_URL = "https://codeload.github.com/" + REPO + "/zip/refs/heads/{branch}"
+# Dernier état publié : l'API de GitHub donne l'empreinte (sha) du dernier envoi, sans
+# le cache de quelques minutes de raw.githubusercontent.com. On lit ensuite
+# version.json et l'archive de CET envoi précis : les deux concordent toujours.
+HEAD_URL = f"https://api.github.com/repos/{REPO}/commits/main"
+VERSION_AT = "https://raw.githubusercontent.com/" + REPO + "/{ref}/version.json"
+ZIP_URL = "https://codeload.github.com/" + REPO + "/zip/{ref}"
 SETUP_URL = f"https://github.com/{REPO}/raw/main/dist/Vocalis-Setup.exe"
 # Ce qui est remplacé lors d'une mise à jour (jamais : réglages, modèles, voix, .venv).
 REPLACED = ("vocalis", "requirements.txt", "requirements-gpu.txt", "README.md")
@@ -44,14 +48,34 @@ def installed_copy() -> bool:
     return (ROOT / ".venv").exists() and not (ROOT / ".git").exists()
 
 
+def _get(url: str, timeout: float, accept: str = "") -> bytes:
+    headers = {"User-Agent": f"Vocalis/{__version__}"}
+    if accept:
+        headers["Accept"] = accept
+    with urllib.request.urlopen(urllib.request.Request(url, headers=headers),
+                                timeout=timeout) as r:
+        return r.read()
+
+
+def latest(timeout: float = 8) -> dict:
+    """version.json du dernier envoi publié (avec son empreinte « ref »)."""
+    try:
+        sha = _get(HEAD_URL, timeout, "application/vnd.github.sha").decode().strip()
+        if len(sha) == 40:
+            info = json.loads(_get(VERSION_AT.format(ref=sha), timeout).decode("utf-8"))
+            info["ref"] = sha
+            return info
+    except Exception as exc:
+        log.info("API GitHub indisponible (%s) : lecture directe", exc)
+    info = json.loads(_get(VERSION_URL + f"?t={int(time.time())}", timeout).decode("utf-8"))
+    info["ref"] = "refs/heads/" + info.get("branch", "main")
+    return info
+
+
 def check(timeout: float = 8) -> dict | None:
-    """Infos de la nouvelle version ({"version", "tag", "notes"}) ou None."""
-    req = urllib.request.Request(VERSION_URL + f"?t={int(time.time())}",
-                                 headers={"User-Agent": f"Vocalis/{__version__}"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        info = json.loads(r.read().decode("utf-8"))
+    """Infos de la nouvelle version ({"version", "notes", "ref"}) ou None."""
+    info = latest(timeout)
     if parse(info.get("version", "0")) > parse(__version__):
-        info.setdefault("branch", "main")
         return info
     return None
 
@@ -59,7 +83,7 @@ def check(timeout: float = 8) -> dict | None:
 def install(info: dict, progress: Callable[[int, str], None]) -> None:
     """Télécharge la version et remplace le programme. Lève une erreur si besoin
     (l'ancienne version est alors remise en place)."""
-    url = ZIP_URL.format(branch=info.get("branch", "main"))
+    url = ZIP_URL.format(ref=info.get("ref") or "refs/heads/" + info.get("branch", "main"))
     progress(0, "Téléchargement de la nouvelle version…")
     req = urllib.request.Request(url, headers={"User-Agent": f"Vocalis/{__version__}"})
     buf = io.BytesIO()

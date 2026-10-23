@@ -1,5 +1,5 @@
 {
-  "version": "2.5.1",
+  "version": "2.5.2",
   "branch": "main",
-  "notes": "• Actions qui réécrivent : le résultat reste dans la langue du texte (un commentaire en portugais reste en portugais).\n• Si l'assistant glisse dans une autre écriture (chinois…), il recommence aussitôt.\n• Les Actions de « Demander » (Résumer, Corriger, Plus poli…) et le mode avancé."
+  "notes": "• Actions qui réécrivent : le résultat reste dans la langue du texte (un commentaire en portugais reste en portugais).\n• Si l'assistant glisse dans une autre écriture (chinois…), il recommence aussitôt.\n• Les Actions de « Demander » (Résumer, Corriger, Plus poli…) et le mode avancé.\n• « Rechercher une mise à jour » voit tout de suite la dernière version publiée."
 }
