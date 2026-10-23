@@ -1181,6 +1181,9 @@ class SettingsWindow(QWidget):
         self.chk_click_stop = QCheckBox("Un clic n'importe où arrête la lecture ; un "
                                         "double-clic sur un mot la reprend à ce mot")
         c.addWidget(self.chk_click_stop)
+        self.chk_pause_media = QCheckBox("Mettre en pause la musique et les vidéos (YouTube, "
+                                         "Spotify…) pendant que Vocalis parle")
+        c.addWidget(self.chk_pause_media)
         c.addWidget(hint("Alt + clic sur un paragraphe reprend aussi la lecture à cet "
                          "endroit. Le badge de langue de la barre de lecture choisit la "
                          "langue d'écoute (traduite si besoin)."))
@@ -1401,6 +1404,7 @@ class SettingsWindow(QWidget):
         combo_set(self.cmb_device, d["appareil"])
         combo_set(self.cmb_engine, d.get("moteur", "auto"))
         self.chk_click_stop.setChecked(bool(lec.get("clic_arrete", True)))
+        self.chk_pause_media.setChecked(bool(lec.get("pause_medias", True)))
         self._update_engine_hint()
         self.chk_clean.setChecked(bool(n["actif"]))
         combo_set(self.cmb_clean, n["modele"])
@@ -1433,6 +1437,7 @@ class SettingsWindow(QWidget):
         d["type_calcul"] = "float16" if d["appareil"] == "cuda" else "int8"
         d["moteur"] = combo_get(self.cmb_engine)
         lec["clic_arrete"] = self.chk_click_stop.isChecked()
+        lec["pause_medias"] = self.chk_pause_media.isChecked()
         cfg.setdefault("general", {})["mises_a_jour_auto"] = self.chk_updates.isChecked()
         n["actif"] = self.chk_clean.isChecked()
         n["modele"] = combo_get(self.cmb_clean) or DEFAULTS["nettoyage"]["modele"]

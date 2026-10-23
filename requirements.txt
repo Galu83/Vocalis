@@ -37,6 +37,7 @@ winrt-Windows.Storage.Streams>=3.2
 # Voix intégrées à Windows (lecture)
 winrt-Windows.Media>=3.2
 winrt-Windows.Media.Core>=3.2
+winrt-Windows.Media.Control>=3.2
 winrt-Windows.Media.SpeechSynthesis>=3.2
 
 # Dictée avec la reconnaissance vocale en ligne de Windows

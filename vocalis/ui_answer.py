@@ -241,8 +241,9 @@ class AskController(QObject):
     _failed = Signal(int, str)
 
     def __init__(self, cfg: dict, tts, speed_getter, hotkey_label: str = "",
-                 install_cb=None):
+                 install_cb=None, media=None):
         super().__init__()
+        self.media = media
         self.cfg = cfg
         self.tts = tts
         self.speed_getter = speed_getter
@@ -290,6 +291,8 @@ class AskController(QObject):
         if lang:
             self.conv.lang = lang
         self.stop_speaking()
+        if self.media is not None:
+            self.media.hold("demander")      # la musique s'arrête dès la question posée
         self._gen += 1
         gen = self._gen
         self._reset_answer()
@@ -328,6 +331,8 @@ class AskController(QObject):
             p, self.player = self.player, None
             p.shutdown()
         self.card.highlight(-1, -1)
+        if self.media is not None:
+            self.media.release("demander")
 
     def close(self) -> None:
         self._gen += 1
@@ -393,6 +398,8 @@ class AskController(QObject):
                 if self.final and self.player is None:
                     self.card.set_playing(False)
                     self.card.highlight(-1, -1)
+                    if self.media is not None:
+                        self.media.release("demander")
                 return
             a, b = seg
             self.spoken_upto = b
@@ -413,6 +420,8 @@ class AskController(QObject):
         if old is not None:
             old.shutdown()
         self.card.set_playing(True)
+        if self.media is not None:
+            self.media.hold("demander")
         self.player.play_from(0)
 
     def _pick_lang(self, text: str) -> str:
@@ -446,6 +455,8 @@ class AskController(QObject):
         self.card.set_status("Voix indisponible")
         self.player = None
         self.card.set_playing(False)
+        if self.media is not None:
+            self.media.release("demander")
 
     # ------------------------------------------------------------------ boutons
     def _toggle_play(self) -> None:

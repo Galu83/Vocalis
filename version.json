@@ -1,5 +1,5 @@
 {
-  "version": "2.3.3",
+  "version": "2.4.0",
   "branch": "main",
-  "notes": "• Dictionnaire : une correction faite juste après une dictée est retenue même si tu envoies le message tout de suite. Quand Vocalis hésite, il te demande « Retenir ? ».\n• « Vocalis » est toujours bien écrit en dictée.\n• Les fenêtres de dictée et de « Demander » s'ouvrent près de l'endroit où tu écris."
+  "notes": "• Pendant que Vocalis lit (ou répond avec « Demander »), la musique et les vidéos (YouTube, Spotify…) se mettent en pause, puis repartent à la fin. Réglable dans Paramètres > Lecture.\n• Dictionnaire : les noms propres mal entendus et corrigés à la main sont mieux retenus."
 }

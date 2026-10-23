@@ -82,10 +82,12 @@ class App(QObject):
         self.pill.languages = active_languages(self.cfg)
         self.reading = ReadingController(self.cfg, self.bridge, self.pill)
         self.reading.on_active_changed = self._reading_active
+        from .media import MediaPauser
+        self.media = MediaPauser(lambda: bool(self.cfg["lecture"].get("pause_medias", True)))
         from .ui_answer import AskController
         self.ask = AskController(self.cfg, self.reading.tts, lambda: self.reading.speed,
                                  key_label(self.cfg["raccourcis"].get("demander", "")),
-                                 install_cb=self._install_assistant)
+                                 install_cb=self._install_assistant, media=self.media)
         from .learning import CorrectionWatcher
         self.learner = CorrectionWatcher(self.reading.uia,
                                          lambda old, new: self.bridge.learned.emit(old, new),
@@ -361,6 +363,10 @@ class App(QObject):
 
     def _reading_active(self, active: bool) -> None:
         import keyboard
+        if active:
+            self.media.hold("lecture")
+        else:
+            self.media.release("lecture")
         self.alt_hook.active = active
         if active and self._esc_handle is None:
             self._esc_handle = keyboard.add_hotkey(self.cfg["raccourcis"]["arreter_lecture"],
