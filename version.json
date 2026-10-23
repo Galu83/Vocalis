@@ -1,5 +1,5 @@
 {
-  "version": "2.5.0",
+  "version": "2.5.1",
   "branch": "main",
-  "notes": "• Nouveau : les Actions de « Demander ». Boutons qui répondent (Résumer, Expliquer…) ou qui réécrivent le texte sélectionné (Corriger, Plus poli…), avec aperçu puis « Remplacer ».\n• Dis le nom d'une action, ou garde une question comme bouton avec « ☆ Garder comme action ».\n• Paramètres > Actions, avec un mode avancé pour écrire un prompt complet."
+  "notes": "• Actions qui réécrivent : le résultat reste dans la langue du texte (un commentaire en portugais reste en portugais).\n• Si l'assistant glisse dans une autre écriture (chinois…), il recommence aussitôt.\n• Les Actions de « Demander » (Résumer, Corriger, Plus poli…) et le mode avancé."
 }

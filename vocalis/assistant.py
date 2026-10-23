@@ -104,6 +104,27 @@ def model_present(url: str, model: str) -> bool:
                (":" not in model and n.split(":")[0] == model) for n in names)
 
 
+RESET = "\x00RESET\x00"            # « on recommence » : la carte efface ce qu'elle a reçu
+_CJK = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\uf900-\ufaff]")
+
+
+def has_cjk(text: str) -> bool:
+    return bool(_CJK.search(text or ""))
+
+
+class _Drift(Exception):
+    """Le modèle est parti dans une autre écriture (Qwen glisse parfois en chinois)."""
+
+
+def text_language(text: str, default: str) -> str:
+    """Langue du texte sélectionné (pour réécrire dans la même langue)."""
+    from . import langdetect
+    from .languages import LANGS
+    code = langdetect.detect_any(text, default) if len(text.split()) >= 12 else \
+        langdetect.detect(text, default, tuple(LANGS))
+    return code if code in LANG_EN else default
+
+
 class NotInstalled(RuntimeError):
     """L'assistant (Ollama ou son modèle) n'est pas encore installé."""
 
@@ -167,7 +188,9 @@ class Conversation:
         first = not self.messages
         content = self._first_user(question) if first else question
         msgs = [self._system(), *self.messages, {"role": "user", "content": content}]
-        answer = yield from self._stream(msgs, 0.3, self.model)
+        answer = yield from self._guarded(msgs, 0.3, self.model,
+                                          LANG_EN.get(self.lang, "the user's language"),
+                                          has_cjk(self.context + question))
         self.messages += [{"role": "user", "content": content},
                           {"role": "assistant", "content": answer}]
 
@@ -179,12 +202,48 @@ class Conversation:
             action, self.context, lower_name(self.lang) if self.lang else "français", extra,
             self._system()["content"])
         model = model or self.model
-        answer = yield from self._stream(msgs, temp, model)
+        out_lang = LANG_EN.get(self.lang, "the user's language")
+        if action["type"] == "transformer" and not action.get("expert"):
+            # Réécrire : dans la langue du TEXTE (la consigne, elle, est en français).
+            src = text_language(self.context, self.lang)
+            out_lang = LANG_EN[src]
+            msgs[-1] = {"role": "user", "content": msgs[-1]["content"] +
+                        f"\n\nThe text is written in {out_lang}. Write the result in "
+                        f"{out_lang}, unless the instruction explicitly asks for a "
+                        "translation."}
+        elif not action.get("expert") and self.context:
+            src = text_language(self.context, self.lang)
+            msgs[-1] = {"role": "user", "content": msgs[-1]["content"] +
+                        f"\n\n(The text is written in {LANG_EN[src]}.)"}
+        answer = yield from self._guarded(msgs, temp, model, out_lang,
+                                          has_cjk(self.context + extra + str(action)))
         # Pour les questions de suite : la conversation continue sur ce résultat.
         self.messages = [m for m in msgs if m["role"] != "system"] + \
             [{"role": "assistant", "content": answer}]
 
-    def _stream(self, msgs: list[dict], temperature: float, model: str):
+    def _guarded(self, msgs: list[dict], temperature: float, model: str, lang: str,
+                 allow_cjk: bool):
+        """Réponse en direct ; si le modèle glisse en chinois, on recommence une fois
+        avec une consigne stricte (la carte efface le début)."""
+        try:
+            return (yield from self._stream(msgs, temperature, model, allow_cjk))
+        except _Drift:
+            log.warning("Assistant : réponse partie dans une autre écriture, nouvel essai")
+        yield RESET
+        rule = (f"Write ONLY in {lang}, with the Latin alphabet. Never write Chinese, "
+                "Japanese or Korean characters, never switch language.")
+        msgs = [dict(m) for m in msgs]
+        if msgs and msgs[0]["role"] == "system":
+            msgs[0]["content"] = msgs[0]["content"] + "\n- " + rule
+        else:
+            msgs.insert(0, {"role": "system", "content": rule})
+        try:
+            return (yield from self._stream(msgs, 0.0, model, allow_cjk))
+        except _Drift as d:
+            return d.args[0] if d.args else ""      # on garde ce qui précède la dérive
+
+    def _stream(self, msgs: list[dict], temperature: float, model: str,
+                allow_cjk: bool = True):
         self._stop = False
         body = {"model": model, "stream": True, "keep_alive": "30m",
                 "options": {"temperature": temperature, "num_ctx": self._num_ctx()},
@@ -204,6 +263,8 @@ class Conversation:
                 if "error" in msg:
                     raise RuntimeError(msg["error"])
                 piece = msg.get("message", {}).get("content", "")
+                if piece and not allow_cjk and has_cjk(piece):
+                    raise _Drift(answer)
                 if piece:
                     answer += piece
                     yield piece
@@ -217,6 +278,10 @@ def run_question(conv: Conversation, question: str, on_piece: Callable[[str], No
     out = ""
     gen = conv.run_action(action, question) if action is not None else conv.ask(question)
     for piece in gen:
+        if piece == RESET:
+            out = ""
+            on_piece(piece)
+            continue
         out += piece
         on_piece(piece)
     return out

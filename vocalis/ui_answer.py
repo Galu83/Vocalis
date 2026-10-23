@@ -377,6 +377,15 @@ class AskController(QObject):
     def _on_piece(self, gen: int, piece: str) -> None:
         if gen != self._gen:
             return
+        if piece == assistant.RESET:          # le modèle a dérapé : on recommence
+            self.stop_speaking()
+            self.raw = self.text = ""
+            self.spoken_upto, self.speak_lang = 0, ""
+            self.card.set_text("")
+            self.card.set_status("Nouvel essai…")
+            if self.media is not None and self.speak:
+                self.media.hold("demander")
+            return
         self.raw += piece
         transform = self.action is not None and self.action["type"] == "transformer"
         self.text = self.raw.strip("\n") if transform else assistant.clean_for_speech(self.raw)
