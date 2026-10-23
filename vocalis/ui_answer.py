@@ -7,7 +7,7 @@ import re
 import threading
 
 from PySide6.QtCore import QObject, QPoint, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import (QColor, QCursor, QGuiApplication, QPainter, QPainterPath,
+from PySide6.QtGui import (QColor, QGuiApplication, QPainter, QPainterPath,
                            QTextCharFormat, QTextCursor)
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QPushButton, QTextEdit, QVBoxLayout,
                                QWidget)
@@ -34,6 +34,7 @@ QPushButton#close { background: transparent; color: #B0B3B8; font: 12pt 'Segoe U
                     padding: 0 6px; }
 QPushButton#close:hover { color: white; }
 """
+CARD_ROOM = 260          # hauteur à prévoir au-dessus de la sélection
 BOUNDARY = re.compile(r"[.!?…:;](?=\s)|\n")
 
 
@@ -53,6 +54,9 @@ class AnswerCard(QWidget):
         self.setFixedWidth(520)
         self._drag: QPoint | None = None
         self.placed = False
+        self.near = None             # sélection (ou curseur) : la carte s'y colle
+        self.near_above = True
+        self.dragged = False
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(18, 12, 12, 14)
@@ -168,14 +172,40 @@ class AnswerCard(QWidget):
         h = int(min(max(doc.size().height() + 8, 60), 340))
         self.text.setFixedHeight(h)
         self.adjustSize()
+        if self.isVisible():
+            self._reposition()          # au-dessus du texte : le bas reste en place
+
+    def place_near(self, rect) -> None:
+        """Juste au-dessus du texte sélectionné ; en dessous s'il n'y a pas la place."""
+        self.near = rect
+        self.dragged = False
+        self.placed = False
+        if rect is not None:
+            screen = QGuiApplication.screenAt(rect.center().toPoint()) or \
+                QGuiApplication.primaryScreen()
+            self.near_above = rect.top() - 12 - CARD_ROOM >= screen.availableGeometry().top()
+
+    def _reposition(self) -> None:
+        if self.dragged:
+            return
+        self.adjustSize()
+        rect = self.near
+        if rect is None:
+            from .screenmap import mouse_rect
+            rect = self.near = mouse_rect()
+        screen = QGuiApplication.screenAt(rect.center().toPoint()) or \
+            QGuiApplication.primaryScreen()
+        geo = screen.availableGeometry()
+        w, h = self.width(), self.height()
+        x = rect.left() if rect.width() > w else rect.center().x() - w / 2
+        y = rect.top() - 12 - h if self.near_above else rect.bottom() + 12
+        x = max(geo.left() + 4, min(int(x), geo.right() - w - 4))
+        y = max(geo.top() + 4, min(int(y), geo.bottom() - h - 4))
+        self.move(int(x), int(y))
 
     def show_near(self) -> None:
-        if not self.placed:
-            screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
-            geo = screen.availableGeometry()
-            self.adjustSize()
-            self.move(geo.center().x() - self.width() // 2,
-                      geo.bottom() - 440 if geo.height() > 700 else geo.top() + 40)
+        if not self.placed or not self.dragged:
+            self._reposition()
             self.placed = True
         if not self.isVisible():
             self.show()
@@ -197,6 +227,7 @@ class AnswerCard(QWidget):
 
     def mouseMoveEvent(self, e) -> None:
         if self._drag is not None:
+            self.dragged = True
             self.move(e.globalPosition().toPoint() - self._drag)
 
     def mouseReleaseEvent(self, _e) -> None:
@@ -294,6 +325,7 @@ class AskController(QObject):
         self.stop_speaking()
         self.card.hide()
         self.card.placed = False
+        self.card.dragged = False
 
     # ------------------------------------------------------------------ réponse
     def _on_piece(self, gen: int, piece: str) -> None:

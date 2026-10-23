@@ -73,9 +73,8 @@ class App(QObject):
 
         self.pill = Pill(lambda: self.session.level if self.session else 0.0)
         self.pill.closeClicked.connect(self._cancel_dictation)
-        ui = self.cfg.get("interface", {})
-        self.pill.set_position(int(ui.get("pastille_x", -1)), int(ui.get("pastille_y", -1)))
-        self.pill.moved.connect(self._save_pill_position)
+        # La pastille s'ouvre à chaque fois près de l'endroit où l'on écrit (plus de
+        # position mémorisée : on la retrouve toujours).
         self.pill.langClicked.connect(self._cycle_language)
         self.pill.targetClicked.connect(self._pick_target)
         from .languages import active as active_languages
@@ -537,8 +536,22 @@ class App(QObject):
         except Exception:
             log.exception("Réglage non enregistré : %s", values)
 
-    def _save_pill_position(self, x: int, y: int) -> None:
-        self._save_settings("interface", {"pastille_x": x, "pastille_y": y})
+    def _writing_rect(self):
+        """Où l'on écrit (sélection ou curseur de texte), en coordonnées de l'écran ;
+        à défaut, la souris."""
+        from PySide6.QtGui import QGuiApplication
+
+        from . import screenmap
+        r = None
+        try:
+            r = self.reading.uia.caret_rect().result(timeout=0.35)
+        except Exception:
+            r = None
+        if r:
+            rect = screenmap.to_logical_rect(*r)
+            if QGuiApplication.screenAt(rect.center().toPoint()) is not None:
+                return rect
+        return screenmap.mouse_rect()
 
     def _languages(self) -> list[str]:
         langs = [l for l in self.cfg["dictee"].get("langues", []) if l] or ["fr"]
@@ -580,12 +593,16 @@ class App(QObject):
         else:
             self.session = DictationSession(self.cfg, self.asr, self.cleaner, report,
                                             self.translator)
+        followup = ask and self.ask.open
+        rect = self._writing_rect()
+        self.pill.place_near(rect)
         self.pill.begin_session()
         pref = self.cfg["dictee"].get("langue_preferee", "") or self._languages()[0]
         if ask:
+            if not followup:
+                self._ask_rect = rect
             from .assistant import PRESETS
             self.session.ask_mode = True
-            followup = self.ask.open
             self._ctx_pending = None
             self._pending_q = None
             if not followup:
@@ -674,6 +691,8 @@ class App(QObject):
             self.pill.show_state("done", "Rien entendu", autohide_ms=1500)
             return
         self.pill._hide()
+        if not self.ask.open:
+            self.ask.card.place_near(getattr(self, "_ask_rect", None))
         if getattr(self, "_ctx_pending", None) is not None:
             self._pending_q = (question, shown, lang or pref)
             return
@@ -733,6 +752,9 @@ class App(QObject):
     def _on_read(self) -> None:
         """Touche de lecture : une dictée en cours est annulée (les deux s'excluent)."""
         self.ask.stop_speaking()
+        from . import screenmap
+        if not self._busy():
+            self.pill.place_near(screenmap.mouse_rect())   # messages de lecture : près de la souris
         if self._busy() and not self.session.stopping:
             self.session.cancel()
             self.pill.end_session()

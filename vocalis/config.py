@@ -72,7 +72,7 @@ DEFAULTS: dict = {
 
 COMMENTS = {
     ("raccourcis", "dictee_bascule"): "un appui pour commencer, un appui pour finir",
-    ("interface", "pastille_x"): "-1 = position par défaut",
+    ("interface", "pastille_x"): "plus utilisé : la pastille s'ouvre près de l'endroit où l'on écrit",
     ("general", "mises_a_jour_auto"): "proposer les nouvelles versions au démarrage",
     ("interface", "menu_classique"): "true = ancien menu de l'icône au lieu du panneau",
     ("raccourcis", "lecture"): "lire la sélection, ou tracer une zone de l'écran",

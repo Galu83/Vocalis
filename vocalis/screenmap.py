@@ -121,3 +121,39 @@ def root_window_at(x: int, y: int) -> int:
     if not hwnd:
         return 0
     return int(_user32.GetAncestor(hwnd, GA_ROOT) or hwnd)
+
+
+# ------------------------------------------------------------------ point d'écriture
+if IS_WINDOWS:
+    class _GUITHREADINFO(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.DWORD), ("flags", wintypes.DWORD),
+                    ("hwndActive", wintypes.HWND), ("hwndFocus", wintypes.HWND),
+                    ("hwndCapture", wintypes.HWND), ("hwndMenuOwner", wintypes.HWND),
+                    ("hwndMoveSize", wintypes.HWND), ("hwndCaret", wintypes.HWND),
+                    ("rcCaret", wintypes.RECT)]
+    _user32.GetGUIThreadInfo.argtypes = [wintypes.DWORD, ctypes.POINTER(_GUITHREADINFO)]
+    _user32.ClientToScreen.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
+
+
+def win32_caret_native() -> tuple[float, float, float, float] | None:
+    """Curseur de texte des applications classiques (Bloc-notes, Office…), en pixels
+    physiques : (gauche, haut, largeur, hauteur). None si l'application n'en publie pas."""
+    if not IS_WINDOWS:
+        return None
+    info = _GUITHREADINFO()
+    info.cbSize = ctypes.sizeof(_GUITHREADINFO)
+    if not _user32.GetGUIThreadInfo(0, ctypes.byref(info)) or not info.hwndCaret:
+        return None
+    r = info.rcCaret
+    if r.bottom - r.top <= 0:
+        return None
+    pt = wintypes.POINT(r.left, r.top)
+    _user32.ClientToScreen(info.hwndCaret, ctypes.byref(pt))
+    return (pt.x, pt.y, max(1, r.right - r.left), r.bottom - r.top)
+
+
+def mouse_rect() -> QRectF:
+    """Petit rectangle autour de la souris (quand on ne trouve pas où l'on écrit)."""
+    from PySide6.QtGui import QCursor
+    p = QCursor.pos()
+    return QRectF(p.x() - 1, p.y() - 10, 2, 20)

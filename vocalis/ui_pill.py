@@ -35,6 +35,7 @@ PAD = 16
 CHIPS_H = 34             # rangée des langues de traduction
 SEL_MAX_H = 66           # texte sélectionné : 3 lignes au plus
 TR_MAX_H = 110           # aperçu de la traduction
+NEAR_ROOM = 330          # place à prévoir sous le texte pour l'encadré de dictée
 
 
 class Pill(QWidget):
@@ -62,7 +63,9 @@ class Pill(QWidget):
         self._hide_timer.timeout.connect(self._hide)
         self.setFont(QFont("Segoe UI", 10, QFont.DemiBold))
         self.setCursor(Qt.OpenHandCursor)
-        self.anchor: QPoint | None = None       # centre choisi par la personne
+        self.anchor: QPoint | None = None       # centre choisi en la déplaçant (cette fois)
+        self.near: QRectF | None = None         # là où l'on écrit : la pastille s'y colle
+        self.near_above = False
         self._drag_offset: QPoint | None = None
         self._dragged = False
         self.lang = ""                  # badge de langue (vide = masqué)
@@ -183,6 +186,16 @@ class Pill(QWidget):
     def set_position(self, x: int, y: int) -> None:
         self.anchor = QPoint(x, y) if x >= 0 and y >= 0 else None
 
+    def place_near(self, rect: QRectF | None) -> None:
+        """À chaque dictée : juste sous l'endroit où l'on écrit (au-dessus s'il n'y a
+        pas la place en bas). Un déplacement à la main vaut pour cette fois seulement."""
+        self.anchor = None
+        self.near = rect
+        if rect is not None:
+            screen = QGuiApplication.screenAt(rect.center().toPoint()) or \
+                QGuiApplication.primaryScreen()
+            self.near_above = rect.bottom() + 14 + NEAR_ROOM > screen.availableGeometry().bottom()
+
     # ----------------------------------------------------------------- API
     def show_state(self, state: str, text: str = "", closable: bool = False,
                    autohide_ms: int = 0) -> None:
@@ -249,6 +262,20 @@ class Pill(QWidget):
                 height += 28 + tr_h
             if self.session:
                 height += CHIPS_H
+        if self.anchor is None and self.near is not None:
+            screen = QGuiApplication.screenAt(self.near.center().toPoint()) or \
+                QGuiApplication.primaryScreen()
+            geo = screen.availableGeometry()
+            cx = self.near.center().x() if self.near.width() < width else \
+                self.near.left() + width / 2
+            if self.near_above:            # le bas reste collé au-dessus du texte
+                y = self.near.top() - 14 - height
+            else:                          # le haut reste collé sous le texte
+                y = self.near.bottom() + 14
+            x = max(geo.left(), min(int(cx - width / 2), geo.right() - int(width)))
+            y = max(geo.top(), min(int(y), geo.bottom() - int(height)))
+            self.setGeometry(x, int(y), int(width), int(height))
+            return
         # L'ancre est le centre de la barre du haut : la fenêtre grandit vers le bas.
         if self.anchor is not None and QGuiApplication.screenAt(self.anchor) is not None:
             geo = QGuiApplication.screenAt(self.anchor).availableGeometry()

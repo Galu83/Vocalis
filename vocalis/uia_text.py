@@ -103,6 +103,11 @@ class UiaReader(threading.Thread):
     def selection(self) -> Future:
         return self._submit(self._selection)
 
+    def caret_rect(self) -> Future:
+        """Rectangle (pixels physiques) de la sélection, sinon du curseur de texte,
+        dans l'application où l'on écrit ; None si introuvable."""
+        return self._submit(self._caret_rect)
+
     def field_snapshot(self) -> Future:
         """(identifiant, texte) de la case où l'on écrit, ou None (apprentissage des
         corrections après une dictée)."""
@@ -222,6 +227,50 @@ class UiaReader(threading.Thread):
             return (vp.Value or "")[:4000]
         except Exception:
             return ""
+
+    def _caret_rect(self):
+        import os
+
+        from .screenmap import win32_caret_native
+        ctrl = self.auto.GetFocusedControl()
+        if ctrl is None or ctrl.ProcessId == os.getpid():
+            return None
+        pat = self._pattern_up(ctrl)
+        if pat is not None:
+            try:
+                sel = pat.GetSelection()
+                if sel and sel.Length:
+                    rng = sel.GetElement(0)
+                    rects = self._rect_list(rng)
+                    if not rects:
+                        # curseur seul (plage vide) : on prend le caractère voisin
+                        r2 = rng.Clone()
+                        r2.MoveEndpointByUnit(END, CHARACTER, 1)
+                        rects = self._rect_list(r2)
+                        if not rects:
+                            r2 = rng.Clone()
+                            r2.MoveEndpointByUnit(START, CHARACTER, -1)
+                            rects = self._rect_list(r2)
+                    if rects:
+                        # sélection longue : on garde ses premières lignes
+                        rects = rects[:6]
+                        left = min(r[0] for r in rects)
+                        top = min(r[1] for r in rects)
+                        right = max(r[0] + r[2] for r in rects)
+                        bottom = max(r[1] + r[3] for r in rects)
+                        return (left, top, right - left, bottom - top)
+            except Exception:
+                log.debug("Position du curseur illisible", exc_info=True)
+        caret = win32_caret_native()
+        if caret is not None:
+            return caret
+        try:
+            r = ctrl.BoundingRectangle
+            if 0 < r.height() <= 120 and r.width() > 0:      # petite case de saisie
+                return (r.left, r.top, r.width(), r.height())
+        except Exception:
+            pass
+        return None
 
     def _field_snapshot(self):
         import os

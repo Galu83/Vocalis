@@ -1,5 +1,5 @@
 {
-  "version": "2.2.2",
+  "version": "2.3.0",
   "branch": "main",
-  "notes": "• « Demander » (Ctrl + Alt + Maj + L) : sélectionne un texte, pose ta question à voix haute (ou clique sur Résumer, Expliquer, Points clés, Répondre) ; la réponse s'affiche et elle est lue.\n• Page État : quand quelque chose manque, le bouton « Réparer » passe en rouge vif."
+  "notes": "• La fenêtre de dictée s'ouvre toujours juste sous l'endroit où tu écris (au-dessus s'il n'y a pas la place).\n• « Demander » (Ctrl + Alt + Maj + L) : la réponse s'affiche juste au-dessus du texte sélectionné.\n• Page État : le bouton « Réparer » passe en rouge vif quand il faut réparer."
 }
