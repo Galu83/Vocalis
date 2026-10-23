@@ -543,10 +543,13 @@ class SettingsWindow(QWidget):
         c.addLayout(self.state_grid)
         btn_refresh = QPushButton("Revérifier")
         btn_refresh.clicked.connect(self._refresh_state)
-        btn_install = QPushButton("Réparer")
-        btn_install.setToolTip("Retélécharge ce qui manque (modèles, voix, lecture d'écran)")
+        btn_install = self.btn_repair = QPushButton("Réparer")
+        btn_install.setToolTip("Retélécharge ce qui manque (modèles, voix, lecture d'écran, "
+                               "assistant)")
         btn_install.clicked.connect(self._repair)
-        c.addLayout(row(btn_refresh, btn_install))
+        self.lbl_repair = QLabel("")
+        self.lbl_repair.setStyleSheet(f"color: {ACCENT}; font-weight: 600;")
+        c.addLayout(row(btn_refresh, btn_install, self.lbl_repair))
         lay.addWidget(frame)
 
         frame2, c2 = card("Comment l'utiliser")
@@ -576,17 +579,39 @@ class SettingsWindow(QWidget):
                 self.state_grid.addWidget(dot("ko"), 0, 0)
                 self.state_grid.addWidget(QLabel(f"Vérification impossible : {result}"), 0, 1)
                 return
+            needs_repair = False
             for i, (name, state, detail) in enumerate(result):
                 self.state_grid.addWidget(dot(state), i, 0)
                 lbl = QLabel(name)
                 lbl.setStyleSheet("font-weight: 600;")
                 self.state_grid.addWidget(lbl, i, 1)
+                if "Réparer" in detail:
+                    needs_repair = True
+                    import html as _html
+                    detail = _html.escape(detail).replace(
+                        "« Réparer »", "Réparer").replace(
+                        "Réparer", f"<b style='color:{ACCENT}'>« Réparer »</b>")
                 d = QLabel(detail)
+                d.setTextFormat(Qt.RichText if "<b" in detail else Qt.PlainText)
                 d.setWordWrap(True)
                 d.setTextInteractionFlags(Qt.TextSelectableByMouse)
                 self.state_grid.addWidget(d, i, 2)
 
+            self._show_repair(needs_repair)
+
         run_bg(lambda: check_components(cfg), show)
+
+    def _show_repair(self, needed: bool) -> None:
+        """Quelque chose manque : le bouton Réparer passe en rouge vif."""
+        self.btn_repair.setText("⚠  Réparer" if needed else "Réparer")
+        self.btn_repair.setStyleSheet(
+            f"QPushButton {{ background: {ACCENT}; color: white; border: none; "
+            "font-weight: 700; padding: 7px 16px; }"
+            "QPushButton:hover { background: #D33C41; }" if needed else "")
+        self.lbl_repair.setText("← un composant manque, clique ici" if needed else "")
+        item = self.nav.item(self.page_index["État"])
+        item.setText("État  ⚠" if needed else "État")
+        item.setForeground(QColor(ACCENT) if needed else QColor("#1D1D1F"))
 
     def _update_usage(self) -> None:
         k = {key: btn.value for key, btn in self.hotkey_buttons.items()}

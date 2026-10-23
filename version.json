@@ -1,5 +1,5 @@
 {
-  "version": "2.2.1",
+  "version": "2.2.2",
   "branch": "main",
-  "notes": "• « Demander » (Ctrl + Alt + Maj + L) : sélectionne un texte, pose ta question à voix haute (ou clique sur Résumer, Expliquer, Points clés, Répondre) ; la réponse s'affiche et elle est lue.\n• Page État : l'assistant est vérifié, et « Réparer » l'installe s'il manque."
+  "notes": "• « Demander » (Ctrl + Alt + Maj + L) : sélectionne un texte, pose ta question à voix haute (ou clique sur Résumer, Expliquer, Points clés, Répondre) ; la réponse s'affiche et elle est lue.\n• Page État : quand quelque chose manque, le bouton « Réparer » passe en rouge vif."
 }
