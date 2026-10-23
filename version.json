@@ -1,5 +1,5 @@
 {
-  "version": "2.5.4",
+  "version": "2.5.5",
   "branch": "main",
-  "notes": "• Sans carte graphique : la traduction utilise le petit modèle de l'assistant, sans Internet.\n• Actions : des consignes longues (un rôle, des règles de rédaction) sont appliquées au texte sélectionné."
+  "notes": "• Lecture : la langue est reconnue à partir de l'endroit où tu lis, morceau par morceau. Un texte anglais sur une page en français est bien traduit, et en écoute automatique chaque passage prend la voix de sa langue.\n• Sans carte graphique : la traduction utilise le petit modèle de l'assistant, sans Internet."
 }

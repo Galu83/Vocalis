@@ -530,12 +530,40 @@ class ReadingController(QObject):
         return None
 
     @staticmethod
+    def _paragraph_languages(doc) -> set[str]:
+        """Langues des paragraphes lus (depuis le point de départ)."""
+        langs, current, words = set(), None, []
+        for w in doc.words[doc.start_word:doc.start_word + 1500]:
+            if w.para != current and words:
+                if len(words) >= 6:
+                    langs.add(langdetect.detect_any(" ".join(words)))
+                words = []
+            current = w.para
+            words.append(w.text)
+        if len(words) >= 6:
+            langs.add(langdetect.detect_any(" ".join(words)))
+        return langs
+
+    def _needs_translation(self, doc, lang: str | None) -> bool:
+        """Langue d'écoute imposée et texte (ou une partie) dans une autre langue ?"""
+        if self.listen == "auto" or lang not in LANGS:
+            return False
+        if lang != self._source:
+            return True
+        return any(l not in ("??", lang) for l in self._paragraph_languages(doc))
+
+    @staticmethod
     def _detect_source(text: str) -> str:
         """Langue du texte (code du catalogue), ou « ?? » si elle n'est pas reconnue."""
         return langdetect.detect_any(text)
 
     def _start(self, doc, view, controls: Controls) -> None:
-        self._source = self._detect_source(doc.text)
+        # Langue du texte À PARTIR d'où l'on lit (pas des paragraphes autour).
+        first = [w for w in doc.words[doc.start_word:doc.start_word + 150]
+                 if w.para == doc.words[doc.start_word].para] if doc.words else []
+        if len(first) < 12:                   # paragraphe très court : un peu plus loin
+            first = doc.words[doc.start_word:doc.start_word + 60]
+        self._source = self._detect_source(" ".join(w.text for w in first))
         lang = self._pick_lang(doc.text)
         log.info("Lecture : démarrage en %s, %d mot(s), à partir du mot %d",
                  lang, len(doc.words), doc.start_word)
@@ -570,7 +598,8 @@ class ReadingController(QObject):
         controls.set_lang(lang)
         self.on_active_changed(True)
         self.current = doc.start_word
-        if lang in LANGS and lang != self._source:
+        self.player.auto_voice = self.listen == "auto"
+        if self._needs_translation(doc, lang):
             # Texte dans une autre langue : lu traduit dans la langue d'écoute.
             log.info("Lecture : texte en %s, lu traduit en %s", self._source, lang)
             self._set_target(lang, start=False)
@@ -706,7 +735,8 @@ class ReadingController(QObject):
         lang = self._pick_lang(self.player.doc.text)
         if lang is None:
             return
-        target = lang if lang in LANGS and lang != self._source else None
+        self.player.auto_voice = choice == "auto"
+        target = lang if self._needs_translation(self.player.doc, lang) else None
         self.player.lang = lang if not target else self.player.lang
         self._set_target(target, start=False)
         self._show_badge()

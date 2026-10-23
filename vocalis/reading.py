@@ -178,6 +178,7 @@ class Player(QObject):
         self.tts = tts
         self.translator = translator
         self.target: str | None = None      # langue de la traduction lue (None = original)
+        self.auto_voice = False             # écoute automatique : voix selon chaque morceau
         self.doc = doc
         self.lang = lang
         self.speed = speed
@@ -274,13 +275,33 @@ class Player(QObject):
         between = self.doc.text[self.doc.words[end_word - 1].end:self.doc.words[next_word].start]
         return "\n\n" in between
 
+    @staticmethod
+    def _segment_lang(text: str, default: str) -> str:
+        """Langue d'un morceau lu (une page peut mélanger plusieurs langues)."""
+        from . import langdetect
+        from .languages import LANGS
+        if len(text.split()) >= 12:
+            code = langdetect.detect_any(text, default)
+            return code if code in LANGS else default
+        return langdetect.detect(text, default, tuple(LANGS))
+
     def _synth(self, a: int, b: int, speed: float, lang: str, target: str | None = None):
         text = speak_text(self.doc, a, b)
         if target and self.translator is not None:
+            if self._segment_lang(text, target) == target:
+                # Morceau déjà dans la langue d'écoute : lu tel quel, sans traduction.
+                speech = self.tts.synth(text, target, speed)
+                speech.translated = text
+                return speech
             translated = self.translator.translate(text, target)
             speech = self.tts.synth(translated, target, speed)
             speech.translated = translated
             return speech
+        if self.auto_voice:
+            # Écoute « automatique » : chaque morceau avec la voix de sa langue.
+            seg = self._segment_lang(text, lang)
+            if seg != lang and self.tts.available(seg):
+                return self.tts.synth(text, seg, speed)
         return self.tts.synth(text, lang, speed)
 
     def _run(self, gen: int, start_word: int) -> None:
