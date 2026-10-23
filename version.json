@@ -1,5 +1,5 @@
 {
-  "version": "2.1.0",
+  "version": "2.2.0",
   "branch": "main",
-  "notes": "Nouveau : le dictionnaire. Tes mots à toi (noms, marques, mots techniques) sont toujours bien écrits en dictée, Vocalis apprend de tes corrections, et tu peux régler la prononciation de la voix. Paramètres > Dictionnaire."
+  "notes": "• Nouveau : « Demander » (Ctrl + Alt + Maj + L). Sélectionne un texte, pose ta question à voix haute (ou clique sur Résumer, Expliquer, Points clés, Répondre) : la réponse s'affiche et elle est lue.\n• Dictionnaire de la dictée et de la prononciation (Paramètres > Dictionnaire)."
 }

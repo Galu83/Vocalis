@@ -21,6 +21,7 @@ DEFAULTS: dict = {
         "dictee_bascule": "ctrl+alt+shift+k",
         "lecture": "ctrl+alt+shift+j",
         "arreter_lecture": "esc",
+        "demander": "ctrl+alt+shift+l",
     },
     "dictee": {
         "langues": ["fr", "pt", "en", "de"],
@@ -56,6 +57,9 @@ DEFAULTS: dict = {
         "opacite_surlignage": 0.45,
         "taille_police_fenetre": 17,
     },
+    "assistant": {
+        "modele": "",
+    },
     "general": {
         "mises_a_jour_auto": True,
     },
@@ -73,6 +77,8 @@ COMMENTS = {
     ("interface", "menu_classique"): "true = ancien menu de l'icône au lieu du panneau",
     ("raccourcis", "lecture"): "lire la sélection, ou tracer une zone de l'écran",
     ("raccourcis", "arreter_lecture"): "arrêter la lecture",
+    ("raccourcis", "demander"): "question à voix haute sur le texte sélectionné",
+    ("assistant", "modele"): "vide = automatique (qwen2.5:7b avec carte NVIDIA, qwen2.5:3b sinon)",
     ("dictee", "langues"): "langues autorisées (détection automatique parmi elles)",
     ("dictee", "langue_forcee"): "réglage avancé : impose une langue (vide = non)",
     ("dictee", "moteur"): "auto, whisper (carte graphique), parakeet (processeur) ou windows (en ligne)",

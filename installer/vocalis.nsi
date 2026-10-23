@@ -95,18 +95,19 @@ Section "Vocalis et menu Démarrer (obligatoire)" SecMain
   Pop $0
 
   SetDetailsPrint both
-  DetailPrint "Étape 1 sur 7 : copie de Vocalis"
+  DetailPrint "Étape 1 sur 8 : copie de Vocalis"
   SetDetailsPrint listonly
   SetOutPath "$INSTDIR"
   RMDir /r "$INSTDIR\vocalis"
   File /r "${PAYLOAD}\*.*"
 
-  !insertmacro STEP 2 7 "Python" python 1
-  !insertmacro STEP 3 7 "composants de Vocalis" libs 1
-  !insertmacro STEP 4 7 "reconnaissance vocale et voix" models 0
-  !insertmacro STEP 5 7 "correction du texte" cleaner 0
-  !insertmacro STEP 6 7 "lecture d'écran (Windows va demander ton accord)" ocr 0
-  !insertmacro STEP 7 7 "menu Démarrer" register 1
+  !insertmacro STEP 2 8 "Python" python 1
+  !insertmacro STEP 3 8 "composants de Vocalis" libs 1
+  !insertmacro STEP 4 8 "reconnaissance vocale et voix" models 0
+  !insertmacro STEP 5 8 "correction du texte" cleaner 0
+  !insertmacro STEP 6 8 "assistant « Demander »" assistant 0
+  !insertmacro STEP 7 8 "lecture d'écran (Windows va demander ton accord)" ocr 0
+  !insertmacro STEP 8 8 "menu Démarrer" register 1
 
   SetDetailsPrint both
   DetailPrint "Vocalis est prêt."

@@ -16,8 +16,8 @@ import logging
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, QTimer, Signal
 import html
 
-from PySide6.QtGui import (QColor, QCursor, QFont, QGuiApplication, QPainter, QPainterPath, QPen,
-                           QTextDocument)
+from PySide6.QtGui import (QColor, QCursor, QFont, QFontMetrics, QGuiApplication, QPainter,
+                           QPainterPath, QPen, QTextDocument)
 from PySide6.QtWidgets import QWidget
 
 log = logging.getLogger(__name__)
@@ -70,6 +70,7 @@ class Pill(QWidget):
         self.target = ""                # langue de traduction choisie (vide = aucune)
         self.languages: tuple[str, ...] = ("fr", "pt", "en", "de")   # langues proposées
         self.session = False            # dictée en cours : l'encadré reste ouvert
+        self.actions: list[tuple[str, str]] = []   # « Demander » : boutons tout prêts
         self.selection = ""             # texte sélectionné au début de la dictée
         self.translation = ""           # aperçu de la traduction
         self._doc_sel = QTextDocument()
@@ -98,6 +99,7 @@ class Pill(QWidget):
 
     def end_session(self) -> None:
         self.session = False
+        self.actions = []
         self.target = ""
         self.selection = self.translation = ""
         self.clear_live()
@@ -151,8 +153,24 @@ class Pill(QWidget):
     def _badge_rect(self) -> QRectF:
         return QRectF(7, 8, 36, 24)
 
+    @staticmethod
+    def _chip_font() -> QFont:
+        f = QFont("Segoe UI", 9)
+        f.setBold(True)
+        return f
+
     def _chip_rects(self) -> list[tuple[str, QRectF]]:
-        """Langues cliquables en bas de l'encadré."""
+        """Langues cliquables en bas de l'encadré (ou boutons de « Demander »)."""
+        if self.actions:
+            fm = QFontMetrics(self._chip_font())
+            widths = [fm.horizontalAdvance(label) + 20 for _, label in self.actions]
+            y = self.height() - CHIPS_H + 2
+            x = self.width() - PAD - sum(widths) - 6 * (len(widths) - 1) + 6
+            out = []
+            for (key, _), w in zip(self.actions, widths):
+                out.append((key, QRectF(x, y, w, 22)))
+                x += w + 6
+            return out
         codes = self.languages
         y = self.height() - CHIPS_H + 2
         x = self.width() - PAD - len(codes) * 46 + 6
@@ -332,7 +350,8 @@ class Pill(QWidget):
         y = HEADER_H + 6
         if sel_h:
             # texte sélectionné (la dictée s'y ajoute)
-            self._label(p, y, "TEXTE SÉLECTIONNÉ", QColor(142, 142, 150))
+            self._label(p, y, "QUESTION SUR CE TEXTE" if self.actions else "TEXTE SÉLECTIONNÉ",
+                        QColor(142, 142, 150))
             y += 18
             p.save()
             p.setClipRect(QRectF(PAD, y, self.width() - 2 * PAD, sel_h))
@@ -356,6 +375,7 @@ class Pill(QWidget):
             p.setFont(f)
             p.drawText(QRectF(PAD, y, self.width() - 2 * PAD, 22),
                        Qt.AlignLeft | Qt.AlignVCenter,
+                       "Pose ta question à voix haute…" if self.actions else
                        "Parle pour le remplacer, ou choisis une langue pour le traduire…"
                        if self.selection else "Parle, le texte s'affiche ici…")
         y += (cur_h or 22)
@@ -398,22 +418,27 @@ class Pill(QWidget):
         p.setFont(f)
         p.setPen(QColor(142, 142, 150))
         left = chips[0][1].left()
-        if left - PAD - 78 > 190:          # assez de place pour les explications
-            p.drawText(QRectF(PAD, chips[0][1].top(), left - PAD - 8, 22),
-                       Qt.AlignLeft | Qt.AlignVCenter,
-                       "Touche = valider  ·  ✕ = annuler")
-        if left - PAD > 80:
-            p.drawText(QRectF(left - 70, chips[0][1].top(), 64, 22),
-                       Qt.AlignRight | Qt.AlignVCenter, "TRADUIRE")
-        f.setPointSizeF(9)
-        p.setFont(f)
+        if self.actions:
+            if left - PAD > 150:
+                p.drawText(QRectF(PAD, chips[0][1].top(), left - PAD - 8, 22),
+                           Qt.AlignLeft | Qt.AlignVCenter, "ou en un clic :")
+        else:
+            if left - PAD - 78 > 190:          # assez de place pour les explications
+                p.drawText(QRectF(PAD, chips[0][1].top(), left - PAD - 8, 22),
+                           Qt.AlignLeft | Qt.AlignVCenter,
+                           "Touche = valider  ·  ✕ = annuler")
+            if left - PAD > 80:
+                p.drawText(QRectF(left - 70, chips[0][1].top(), 64, 22),
+                           Qt.AlignRight | Qt.AlignVCenter, "TRADUIRE")
+        p.setFont(self._chip_font())
+        labels = dict(self.actions)
         for code, r in chips:
-            on = code == self.target
+            on = code == self.target and not self.actions
             p.setPen(Qt.NoPen if on else QPen(QColor(255, 255, 255, 70), 1))
             p.setBrush(BLUE if on else QColor(255, 255, 255, 18))
             p.drawRoundedRect(r, 7, 7)
             p.setPen(QColor(255, 255, 255) if on else QColor(220, 220, 225))
-            p.drawText(r, Qt.AlignCenter, code.upper())
+            p.drawText(r, Qt.AlignCenter, labels.get(code, code.upper()))
 
     # ----------------------------------------------------------------- souris
     def mousePressEvent(self, event) -> None:

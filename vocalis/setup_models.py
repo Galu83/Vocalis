@@ -154,20 +154,15 @@ def ollama_up(url: str) -> bool:
         return False
 
 
-def setup_ollama() -> None:
-    title("Nettoyage du texte (Ollama)")
-    c = CFG["nettoyage"]
-    if not c["actif"]:
-        print(f"{INFO}Nettoyage désactivé dans config.toml")
-        return
-    url = c["url"].rstrip("/")
+def start_ollama(url: str) -> bool:
+    """Démarre Ollama s'il est installé ; vrai s'il répond."""
     if not ollama_up(url):
         exe = find_ollama()
         if not exe:
             problems.append("Ollama n'est pas installé")
             print(f"{KO}Ollama introuvable. Installe-le depuis https://ollama.com/download "
                   "puis relance l'installation de Vocalis")
-            return
+            return False
         print(f"{INFO}Démarrage d'Ollama…")
         subprocess.Popen([exe, "serve"], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         for _ in range(30):
@@ -177,29 +172,65 @@ def setup_ollama() -> None:
     if not ollama_up(url):
         problems.append("Ollama ne répond pas")
         print(f"{KO}Ollama ne répond pas sur {url}")
-        return
-    model = c["modele"]
-    print(f"{INFO}Téléchargement du modèle {model} (environ 4,7 Go, une seule fois)…")
+        return False
+    return True
+
+
+def pull_model(url: str, model: str, size: str) -> bool:
+    print(f"{INFO}Téléchargement du modèle {model} (environ {size}, une seule fois)…")
     req = urllib.request.Request(f"{url}/api/pull", data=json.dumps({"model": model}).encode(),
                                  headers={"Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=3600) as r:
-            last = ""
+            last, shown = "", -1
             for line in r:
                 msg = json.loads(line)
                 if "error" in msg:
                     raise RuntimeError(msg["error"])
                 status = msg.get("status", "")
-                if msg.get("total"):
+                if msg.get("total") and msg["total"] > 50_000_000:
+                    # une ligne par pourcent : la fenêtre de progression les suit
                     pct = msg.get("completed", 0) * 100 // msg["total"]
-                    print(f"\r{INFO}{status[:40]} : {pct} %   ", end="", flush=True)
-                elif status != last:
-                    print(f"\r{INFO}{status:<60}")
+                    if pct != shown:
+                        print(f"{INFO}Téléchargement : {pct} %", flush=True)
+                        shown = pct
+                elif status != last and not msg.get("total"):
+                    print(f"{INFO}{status}", flush=True)
                 last = status
-        print()
     except Exception as exc:
         problems.append(f"Modèle {model} : {exc}")
         print(f"{KO}Téléchargement de {model} impossible : {exc}")
+        return False
+    return True
+
+
+def setup_assistant() -> None:
+    """« Demander » : Qwen 7B avec une carte NVIDIA (déjà là pour la correction),
+    Qwen 3B sur le processeur sinon."""
+    title("Assistant « Demander »")
+    from vocalis.assistant import assistant_model, model_present
+    url = CFG["nettoyage"]["url"].rstrip("/")
+    if not start_ollama(url):
+        return
+    model = assistant_model(CFG)
+    if model_present(url, model):
+        print(f"{OK}Modèle {model} déjà présent")
+        return
+    if pull_model(url, model, "4,7 Go" if "7b" in model else "2 Go"):
+        print(f"{OK}Assistant prêt ({model})")
+
+
+def setup_ollama() -> None:
+    title("Nettoyage du texte (Ollama)")
+    c = CFG["nettoyage"]
+    if not c["actif"]:
+        print(f"{INFO}Nettoyage désactivé dans config.toml")
+        return
+    url = c["url"].rstrip("/")
+    if not start_ollama(url):
+        return
+    model = c["modele"]
+    if not pull_model(url, model, "4,7 Go"):
         return
     from vocalis.cleaner import Cleaner
     cleaner = Cleaner(CFG)
@@ -280,7 +311,8 @@ def main() -> None:
     if only == ["verifier_ocr"]:
         verify_ocr()
     steps = {"whisper": setup_whisper, "voix": setup_voices, "ocr": check_ocr,
-             "ollama": setup_ollama, "micro": check_mic, "icone": make_icon_file}
+             "ollama": setup_ollama, "assistant": setup_assistant, "micro": check_mic,
+             "icone": make_icon_file}
     for name, fn in steps.items():
         if not only or name in only:
             try:

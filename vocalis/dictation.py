@@ -70,6 +70,8 @@ class DictationSession(threading.Thread):
         self.window_lost = False
         self.cancelled = False
         self.note = ""
+        self.ask_mode = False    # « Demander » : la phrase dite est une question
+        self.preset = ""         # « Demander » : bouton tout prêt choisi
 
     # appelé depuis l'interface
     def request_stop(self) -> None:
@@ -101,12 +103,16 @@ class DictationSession(threading.Thread):
     # ------------------------------------------------------------------ sélection, traduction
     def set_selection(self, text: str) -> None:
         self.selection = text.strip()
-        self.on_state("selection", self.selection)
+        self.on_state("selection", self.selection[:600] if self.ask_mode else self.selection)
         if self.target:
             self._preview()
 
     def set_target(self, lang: str) -> None:
         """Clic sur une langue : la choisir, ou l'enlever si elle l'était déjà."""
+        if self.ask_mode:
+            self.preset = lang               # bouton tout prêt : on valide tout de suite
+            self.request_stop()
+            return
         self.target = "" if lang == self.target else lang
         log.info("Traduction choisie : %s", self.target or "aucune")
         self.on_state("target", self.target)
@@ -165,6 +171,11 @@ class DictationSession(threading.Thread):
 
     def _complete(self, raw: str, lang: str) -> None:
         """Fin de dictée commune à tous les moteurs : texte final, puis collage."""
+        if self.ask_mode:
+            # Rien n'est écrit : la question part vers l'assistant.
+            self.on_state("question", json.dumps([raw, lang, self.preset],
+                                                 ensure_ascii=False))
+            return
         if not raw and not self.selection:
             if self.typed and self._same_window():
                 winutil.backspace(len(self.typed))

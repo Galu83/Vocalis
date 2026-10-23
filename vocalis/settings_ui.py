@@ -76,6 +76,9 @@ HOTKEYS = [
     ("lecture", "Lecture à voix haute",
      "Lit la sélection. Sans sélection : clique sur un paragraphe ou trace un rectangle."),
     ("arreter_lecture", "Arrêter la lecture", "Actif seulement pendant une lecture."),
+    ("demander", "Demander",
+     "Sélectionne un texte (ou pointe un paragraphe), appuie, pose ta question à voix haute "
+     "puis appuie de nouveau. La réponse s'affiche et elle est lue."),
 ]
 SAMPLES = {
     "fr": "Bonjour ! Voici un essai de lecture à voix haute, à la vitesse choisie.",

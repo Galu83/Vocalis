@@ -23,11 +23,21 @@ Pour désinstaller : **Paramètres Windows > Applications > Vocalis > Désinstal
 |---|---|
 | **Ctrl + Alt + Maj + K** | Commencer une dictée ; la même touche la valide (le texte est corrigé puis inséré). La croix ✕ annule. |
 | **Ctrl + Alt + Maj + J** | Lire à voix haute : le texte sélectionné, ou clique sur un paragraphe (ou trace un rectangle). |
+| **Ctrl + Alt + Maj + L** | Demander : une question à voix haute sur le texte sélectionné ; la réponse est affichée et lue. |
 | **Échap** | Arrêter la lecture. Pendant une lecture, un clic arrête, un double-clic reprend au mot cliqué. |
 
 **Traduire :** pendant une dictée, clique sur une langue en bas de la fenêtre. Ce que tu dis est traduit. Si un texte était sélectionné et que tu ne parles pas, c'est lui qui est traduit et remplacé.
 
 **Écouter dans une autre langue :** pendant une lecture, le badge de langue de la barre permet de choisir la langue d'écoute. Le texte est traduit si besoin, et ce choix est mémorisé.
+
+## Demander
+
+1. Sélectionne un texte (un mail, un article, un PDF…). Sans sélection, Vocalis prend le paragraphe sous la souris.
+2. Appuie sur **Ctrl + Alt + Maj + L**, pose ta question à voix haute (« résume en trois points », « quelle est la date limite ? »), puis appuie de nouveau sur la touche. Ou clique sur un bouton tout prêt : **Résumer**, **Expliquer**, **Points clés**, **Répondre**.
+3. La réponse s'écrit dans une petite fenêtre et elle est lue dès la première phrase. Boutons : **Pause / Lire**, **Copier**, **Insérer** (colle la réponse là où est le curseur).
+4. Pendant que la fenêtre est ouverte, la même touche pose une **question de suite** sur le même texte.
+
+L'assistant fonctionne sur ton PC, sans Internet ni compte : Qwen 7B avec une carte NVIDIA, Qwen 3B (environ 2 Go) sinon. S'il manque, la fenêtre propose de l'installer.
 
 ## Dictionnaire
 

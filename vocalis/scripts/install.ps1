@@ -5,6 +5,7 @@
 #    -Step libs     : environnement et bibliothèques
 #    -Step models   : reconnaissance vocale, voix, icône
 #    -Step cleaner  : correction du texte (Ollama + Qwen, seulement avec une carte NVIDIA)
+#    -Step assistant: « Demander » (Ollama + Qwen 7B avec carte NVIDIA, Qwen 3B sinon)
 #    -Step ocr      : lecture d'écran pour les langues choisies (demande l'accord Windows)
 #    -Step register : menu Démarrer et entrée « Applications » de Windows
 #    -Step desktop  : raccourci sur le Bureau (si choisi dans l'installateur)
@@ -59,6 +60,18 @@ function Download([string]$url, [string]$dest) {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $ProgressPreference = 'SilentlyContinue'
     Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
+}
+
+function Install-Ollama {
+    $ollama = Get-Command ollama.exe -ErrorAction SilentlyContinue
+    $path = Join-Path $env:LOCALAPPDATA 'Programs\Ollama\ollama.exe'
+    if ($ollama -or (Test-Path -LiteralPath $path)) { return }
+    Say "Téléchargement d'Ollama (moteur de l'IA locale)…"
+    $setup = Join-Path $env:TEMP 'OllamaSetup.exe'
+    Download 'https://ollama.com/download/OllamaSetup.exe' $setup
+    Say "Installation d'Ollama…"
+    Start-Process -FilePath $setup -Wait -ArgumentList '/VERYSILENT', '/NORESTART', '/SUPPRESSMSGBOXES' | Out-Null
+    Remove-Item -LiteralPath $setup -ErrorAction SilentlyContinue
 }
 
 function Run-Py([string[]]$arguments) {
@@ -122,19 +135,16 @@ try {
                 Say "Pas de carte NVIDIA : la correction du texte locale n'est pas installée (elle serait trop lente)."
                 exit 0
             }
-            $ollama = Get-Command ollama.exe -ErrorAction SilentlyContinue
-            $path = Join-Path $env:LOCALAPPDATA 'Programs\Ollama\ollama.exe'
-            if (-not $ollama -and -not (Test-Path -LiteralPath $path)) {
-                Say "Téléchargement d'Ollama (moteur de correction)…"
-                $setup = Join-Path $env:TEMP 'OllamaSetup.exe'
-                Download 'https://ollama.com/download/OllamaSetup.exe' $setup
-                Say "Installation d'Ollama…"
-                Start-Process -FilePath $setup -Wait -ArgumentList '/VERYSILENT', '/NORESTART', '/SUPPRESSMSGBOXES' | Out-Null
-                Remove-Item -LiteralPath $setup -ErrorAction SilentlyContinue
-            }
+            Install-Ollama
             Say "Téléchargement du modèle de correction (environ 4,7 Go, une seule fois)…"
             $code = Run-Py @('-m', 'vocalis.setup_models', 'ollama')
             if ($code -eq 1) { throw "Le modèle de correction n'a pas pu être installé." }
+        }
+        'assistant' {
+            Install-Ollama
+            Say "Préparation de l'assistant « Demander »…"
+            $code = Run-Py @('-m', 'vocalis.setup_models', 'assistant')
+            if ($code -eq 1) { throw "L'assistant n'a pas pu être installé." }
         }
         'ocr' {
             $script = Join-Path $PSScriptRoot 'ocr.ps1'

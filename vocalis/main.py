@@ -48,6 +48,8 @@ class Bridge(QObject):
     plainClick = Signal(int, int, bool)          # essai : clic / double-clic en lecture
     openSettings = Signal(str)                   # ouvrir les paramètres à une page
     learned = Signal(str, str)                   # mot appris par le dictionnaire
+    ask = Signal()                               # touche « Demander »
+    askContext = Signal(object, str)             # texte trouvé pour la question
 
 
 # =========================================================================== application
@@ -62,6 +64,8 @@ class App(QObject):
         from .translator import Translator
         self.translator = Translator(self.cfg)
         self.session: DictationSession | None = None
+        self._ctx_pending = None          # « Demander » : texte de la question attendu
+        self._pending_q = None            # question posée avant d'avoir le texte
         self.mode = ""
         self._hold_down = False
         self._last_toggle = 0.0
@@ -78,6 +82,10 @@ class App(QObject):
         self.pill.languages = active_languages(self.cfg)
         self.reading = ReadingController(self.cfg, self.bridge, self.pill)
         self.reading.on_active_changed = self._reading_active
+        from .ui_answer import AskController
+        self.ask = AskController(self.cfg, self.reading.tts, lambda: self.reading.speed,
+                                 key_label(self.cfg["raccourcis"].get("demander", "")),
+                                 install_cb=self._install_assistant)
         from .learning import CorrectionWatcher
         self.learner = CorrectionWatcher(self.reading.uia,
                                          lambda old, new: self.bridge.learned.emit(old, new))
@@ -95,6 +103,8 @@ class App(QObject):
         b.plainClick.connect(self.reading.plain_click)
         b.openSettings.connect(self.open_settings)
         b.learned.connect(self._on_learned)
+        b.ask.connect(self._on_ask)
+        b.askContext.connect(self._on_ask_context)
         b.updateFound.connect(self._on_update_found)
         self._update_dialog = None
         self._update_manual = False
@@ -312,6 +322,9 @@ class App(QObject):
                 Combo(keyboard, r["dictee_bascule"], self._toggle_cb, None, "dictée marche/arrêt"),
                 Combo(keyboard, r["lecture"], self._debounced(b.read.emit), None, "lecture"),
             ]
+            if r.get("demander"):
+                self._combos.append(Combo(keyboard, r["demander"], self._debounced(b.ask.emit),
+                                          None, "demander"))
         except Exception as exc:
             log.exception("Raccourcis impossibles à enregistrer")
             QMessageBox.warning(None, "Vocalis",
@@ -375,7 +388,8 @@ class App(QObject):
             "status": status,
             "ready": ready,
             "hotkeys": [("Dictée", key_label(r["dictee_bascule"])),
-                        ("Lecture", key_label(r["lecture"]))],
+                        ("Lecture", key_label(r["lecture"]))]
+            + ([("Demander", key_label(r["demander"]))] if r.get("demander") else []),
             "engine": engine,
             "engines": [(k, short[k]) for k in ENGINES],
             "click_stop": bool(self.cfg["lecture"].get("clic_arrete", True)),
@@ -545,7 +559,7 @@ class App(QObject):
     def _busy(self) -> bool:
         return self.session is not None and self.session.is_alive()
 
-    def _start_dictation(self, mode: str) -> None:
+    def _start_dictation(self, mode: str, ask: bool = False) -> None:
         if self.asr is None:
             self.pill.show_state("info", "Chargement des modèles…", autohide_ms=2000)
             return
@@ -556,6 +570,7 @@ class App(QObject):
             return
         self.mode = mode
         self.learner.stop()
+        self.ask.stop_speaking()
         self.reading.stop()          # une lecture en cours s'arrête (les deux s'excluent)
         report = lambda s, t: self.bridge.dictState.emit(s, t)  # noqa: E731
         if getattr(self, "engine", "") == "windows":
@@ -566,11 +581,116 @@ class App(QObject):
             self.session = DictationSession(self.cfg, self.asr, self.cleaner, report,
                                             self.translator)
         self.pill.begin_session()
-        self._read_selection(self.session)
         pref = self.cfg["dictee"].get("langue_preferee", "") or self._languages()[0]
+        if ask:
+            from .assistant import PRESETS
+            self.session.ask_mode = True
+            followup = self.ask.open
+            self._ctx_pending = None
+            self._pending_q = None
+            if not followup:
+                self.pill.actions = [(k, label) for k, label, _ in PRESETS]
+                self._ctx_pending = self.session
+                self._read_context(self.session, pref)
+            self.pill.set_language(self.cfg["dictee"].get("langue_forcee", "") or pref)
+            self.pill.show_state("listening", "Question de suite" if followup
+                                 else "Pose ta question", closable=True)
+            self.session.start()
+            return
+        self._read_selection(self.session)
         self.pill.set_language(self.cfg["dictee"].get("langue_forcee", "") or pref)
         self.pill.show_state("listening", "J'écoute", closable=(mode == "toggle"))
         self.session.start()
+
+    # ------------------------------------------------------------------ Demander
+    def _on_ask(self) -> None:
+        """Touche « Demander » : question sur le texte sélectionné (ou le paragraphe
+        sous la souris). Deuxième appui : la question est validée."""
+        if self._busy():
+            if self.session.ask_mode and not self.session.stopping:
+                self._stop_dictation()
+            elif not self.session.ask_mode:
+                self.pill.show_state("info", "Termine d'abord la dictée en cours",
+                                     autohide_ms=1500)
+            return
+        self._start_dictation("toggle", ask=True)
+
+    def _read_context(self, session, lang: str) -> None:
+        """Texte de la question : la sélection, sinon le paragraphe sous la souris."""
+        from PySide6.QtGui import QCursor
+
+        from . import screenmap
+        uia = self.reading.uia
+        nx, ny = screenmap.to_native(QCursor.pos())
+
+        def work():
+            text = ""
+            try:
+                text = (uia.selected_text().result(timeout=1.5) or "").strip()
+            except Exception:
+                pass
+            if not text:
+                try:
+                    doc = uia.paragraphs_at(nx, ny).result(timeout=2.5)
+                    if doc is not None and doc.paragraphs:
+                        text = "\n\n".join(doc.paragraphs[doc.start_para:]).strip()
+                except Exception:
+                    pass
+            log.info("Demander : texte de %d caractère(s)", len(text))
+            self.bridge.askContext.emit(session, text)
+
+        threading.Thread(target=work, daemon=True, name="demander-texte").start()
+
+    def _on_ask_context(self, session, text: str) -> None:
+        if session is not getattr(self, "_ctx_pending", None):
+            return                                  # question annulée entre-temps
+        self._ctx_pending = None
+        lang = self.cfg["dictee"].get("langue_preferee", "") or self._languages()[0]
+        self.ask.begin(text, lang)
+        if text and session.is_alive():
+            session.set_selection(text)
+        if self._pending_q is not None:             # question posée avant d'avoir le texte
+            q, self._pending_q = self._pending_q, None
+            self.ask.ask(*q)
+
+    def _on_question(self, payload: str) -> None:
+        import json
+
+        from .assistant import PRESET_PROMPTS, PRESETS
+        raw, lang, preset = json.loads(payload)
+        self.pill.set_language("")
+        self.pill.end_session()
+        pref = self.cfg["dictee"].get("langue_preferee", "") or self._languages()[0]
+        if preset in PRESET_PROMPTS:
+            question = PRESET_PROMPTS[preset]
+            shown = dict((k, label) for k, label, _ in PRESETS)[preset]
+            if raw.strip():                 # quelques mots dits avant le clic : précision
+                question += " " + raw.strip()
+                shown += " · " + raw.strip()
+            lang = pref
+        elif raw.strip():
+            question = shown = raw.strip()
+        else:
+            self.pill.show_state("done", "Rien entendu", autohide_ms=1500)
+            return
+        self.pill._hide()
+        if getattr(self, "_ctx_pending", None) is not None:
+            self._pending_q = (question, shown, lang or pref)
+            return
+        self.ask.ask(question, shown, lang or pref)
+
+    def _install_assistant(self) -> None:
+        from .assistant import assistant_model
+        from .ui_tasks import Task, TaskWindow, install_step
+        model = assistant_model(self.cfg)
+        size = "4,7 Go" if "7b" in model else "2 Go"
+        tasks = [Task(f"assistant de Vocalis ({model}, environ {size})",
+                      install_step("assistant"))]
+        self._assistant_tasks = TaskWindow("Installer l'assistant", tasks,
+                                           restart_after=False)
+        self._assistant_tasks.show()
+        self.ask.card.show_message("Installation en cours… Quand elle est finie, appuie de "
+                                   "nouveau sur la touche « Demander ».")
 
     def _pick_target(self, lang: str) -> None:
         """Clic sur une langue dans l'encadré : le texte validé sera traduit dans
@@ -597,6 +717,7 @@ class App(QObject):
 
     def _cancel_dictation(self) -> None:
         """Croix de l'encadré : tout est annulé, rien n'est collé ni remplacé."""
+        self._ctx_pending = self._pending_q = None
         if self._busy():
             log.info("Dictée annulée par la croix")
             self.session.cancel()
@@ -611,6 +732,7 @@ class App(QObject):
 
     def _on_read(self) -> None:
         """Touche de lecture : une dictée en cours est annulée (les deux s'excluent)."""
+        self.ask.stop_speaking()
         if self._busy() and not self.session.stopping:
             self.session.cancel()
             self.pill.end_session()
@@ -652,6 +774,8 @@ class App(QObject):
             self.pill.show_state("finishing", "Finalisation…")
         elif state == "cleaning":
             self.pill.show_state("cleaning", "Nettoyage…")
+        elif state == "question":
+            self._on_question(text)
         elif state == "inserted":
             self.learner.watch(text)
         elif state == "cancelled":
