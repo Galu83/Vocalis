@@ -1,5 +1,5 @@
 {
-  "version": "2.2.0",
+  "version": "2.2.1",
   "branch": "main",
-  "notes": "• Nouveau : « Demander » (Ctrl + Alt + Maj + L). Sélectionne un texte, pose ta question à voix haute (ou clique sur Résumer, Expliquer, Points clés, Répondre) : la réponse s'affiche et elle est lue.\n• Dictionnaire de la dictée et de la prononciation (Paramètres > Dictionnaire)."
+  "notes": "• « Demander » (Ctrl + Alt + Maj + L) : sélectionne un texte, pose ta question à voix haute (ou clique sur Résumer, Expliquer, Points clés, Répondre) ; la réponse s'affiche et elle est lue.\n• Page État : l'assistant est vérifié, et « Réparer » l'installe s'il manque."
 }

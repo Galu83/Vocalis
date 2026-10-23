@@ -360,6 +360,21 @@ def check_components(cfg: dict) -> list[tuple[str, str, str]]:
         except Exception:
             out.append(("Nettoyage du texte", "ko", "Ollama ne répond pas : lance Ollama "
                                                     "ou relance l'installateur"))
+    # assistant « Demander »
+    try:
+        from .assistant import assistant_model, model_present, ollama_up
+        model = assistant_model(cfg)
+        url = c["url"].rstrip("/")
+        if not ollama_up(url):
+            out.append(("Assistant « Demander »", "warn",
+                        "Ollama ne répond pas : bouton « Réparer » ci-dessous"))
+        elif model_present(url, model):
+            out.append(("Assistant « Demander »", "ok", f"Modèle {model} prêt"))
+        else:
+            out.append(("Assistant « Demander »", "warn",
+                        f"Modèle {model} absent : bouton « Réparer » ci-dessous"))
+    except Exception as exc:
+        out.append(("Assistant « Demander »", "warn", str(exc)))
     # voix
     from . import voices as V
     for lang in active_languages(cfg):
@@ -581,7 +596,9 @@ class SettingsWindow(QWidget):
             f"<b>{key_label(k['lecture'])}</b> : lire le texte sélectionné ; sans sélection, "
             f"clique sur un paragraphe (ou trace un rectangle).<br>"
             f"<b>{key_label(k['arreter_lecture'])}</b> : arrêter la lecture. Pendant la lecture, "
-            f"<b>Alt + clic</b> reprend au paragraphe cliqué.")
+            f"<b>Alt + clic</b> reprend au paragraphe cliqué.<br>"
+            f"<b>{key_label(k['demander'])}</b> : poser une question à voix haute sur le texte "
+            f"sélectionné (ou cliquer sur Résumer, Expliquer…) ; la réponse est affichée et lue.")
 
     # ------------------------------------------------------------------ page Raccourcis
     def _page_hotkeys(self) -> QWidget:
@@ -1500,6 +1517,7 @@ class SettingsWindow(QWidget):
                                                                 "whisper", "voix")),
             Task("lecture d'écran (Windows peut demander ton accord : « Oui »)",
                  install_step("ocr", langs), optional=True),
+            Task("assistant « Demander »", install_step("assistant"), optional=True),
         ]
         self._task_window = TaskWindow("Réparation de Vocalis", tasks, restart_after=True,
                                        on_restart=self.restartRequested.emit)
