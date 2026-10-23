@@ -8,8 +8,8 @@ Vocalis écrit ce que tu dis dans n'importe quelle application, et lit à voix h
 
 1. Télécharge **[Vocalis-Setup.exe](https://github.com/Galu83/Vocalis/raw/main/dist/Vocalis-Setup.exe)**.
 2. Double-clique dessus. Si Windows affiche « Windows a protégé votre ordinateur », clique sur **Informations complémentaires** puis **Exécuter quand même**. Vocalis n'est pas encore signé numériquement.
-3. Clique sur **Installer**. Vocalis télécharge ce dont il a besoin (de 2 à 12 Go selon ton ordinateur). Compte 10 à 30 minutes.
-4. À la fin, un raccourci **Vocalis** se trouve sur le Bureau.
+3. Coche **Raccourci sur le Bureau** si tu en veux un, puis clique sur **Installer**. Vocalis télécharge ce dont il a besoin (de 2 à 12 Go selon ton ordinateur). Compte 10 à 30 minutes.
+4. À la fin, Vocalis se trouve dans le **menu Démarrer**.
 
 Vocalis se range près de l'horloge. Clique sur son icône pour voir les raccourcis, choisir le moteur de dictée et ouvrir les paramètres.
 

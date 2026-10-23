@@ -6,7 +6,8 @@
 #    -Step models   : reconnaissance vocale, voix, icône
 #    -Step cleaner  : correction du texte (Ollama + Qwen, seulement avec une carte NVIDIA)
 #    -Step ocr      : lecture d'écran pour les langues choisies (demande l'accord Windows)
-#    -Step register : raccourcis et entrée « Applications » de Windows
+#    -Step register : menu Démarrer et entrée « Applications » de Windows
+#    -Step desktop  : raccourci sur le Bureau (si choisi dans l'installateur)
 # ============================================================
 param([Parameter(Mandatory = $true)][string]$Step,
       [string]$Languages = 'fr,pt,en,de')
@@ -150,9 +151,7 @@ try {
             if (Test-Path -LiteralPath $log) { Get-Content -LiteralPath $log -Encoding UTF8 | ForEach-Object { Say $_ } }
         }
         'register' {
-            $desktop = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Vocalis.lnk'
             $menu = Join-Path ([Environment]::GetFolderPath('Programs')) 'Vocalis.lnk'
-            New-Shortcut $desktop '-m vocalis' 'Vocalis'
             New-Shortcut $menu '-m vocalis' 'Vocalis'
             $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Vocalis'
             New-Item -Path $key -Force | Out-Null
@@ -165,7 +164,11 @@ try {
             foreach ($k in $values.Keys) { Set-ItemProperty -Path $key -Name $k -Value $values[$k] }
             Set-ItemProperty -Path $key -Name NoModify -Value 1 -Type DWord
             Set-ItemProperty -Path $key -Name NoRepair -Value 1 -Type DWord
-            Say "Raccourci créé sur le Bureau ; Vocalis apparaît dans Paramètres > Applications."
+            Say "Vocalis est dans le menu Démarrer et dans Paramètres > Applications."
+        }
+        'desktop' {
+            New-Shortcut (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Vocalis.lnk') '-m vocalis' 'Vocalis'
+            Say "Raccourci créé sur le Bureau."
         }
         default { throw "Étape inconnue : $Step" }
     }

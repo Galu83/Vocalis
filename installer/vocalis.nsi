@@ -35,12 +35,18 @@ VIAddVersionKey /LANG=1036 "LegalCopyright" "Vocalis"
 !define MUI_TEXT_INSTALLING_TITLE "Installation de Vocalis"
 !define MUI_TEXT_INSTALLING_SUBTITLE "Vocalis se prépare. Tu peux faire autre chose pendant ce temps."
 !define MUI_FINISHPAGE_TITLE "Vocalis est installé"
-!define MUI_FINISHPAGE_TEXT "Un raccourci « Vocalis » a été créé sur le Bureau.$\r$\n$\r$\nUne fois lancé, Vocalis se place près de l'horloge. Clique sur son icône pour voir les raccourcis et les réglages."
+!define MUI_FINISHPAGE_TEXT "Vocalis se trouve dans le menu Démarrer.$\r$\n$\r$\nUne fois lancé, Vocalis se place près de l'horloge. Clique sur son icône pour voir les raccourcis et les réglages."
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_TEXT "Lancer Vocalis maintenant"
 !define MUI_FINISHPAGE_RUN_FUNCTION LaunchVocalis
 
 !insertmacro MUI_PAGE_WELCOME
+!define MUI_COMPONENTSPAGE_NODESC
+!define MUI_PAGE_HEADER_TEXT "Options d'installation"
+!define MUI_PAGE_HEADER_SUBTEXT "Choisis où placer les raccourcis de Vocalis."
+!define MUI_COMPONENTSPAGE_TEXT_TOP "Vocalis est toujours ajouté au menu Démarrer. Coche les options voulues, puis clique sur « Installer »."
+!define MUI_COMPONENTSPAGE_TEXT_COMPLIST "Options :"
+!insertmacro MUI_PAGE_COMPONENTS
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW InstFilesShow
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
@@ -77,7 +83,8 @@ FunctionEnd
   ${EndIf}
 !macroend
 
-Section "Vocalis" SecMain
+Section "Vocalis et menu Démarrer (obligatoire)" SecMain
+  SectionIn RO
   SetShellVarContext current
   StrCpy $Failed "0"
 
@@ -99,8 +106,15 @@ Section "Vocalis" SecMain
   !insertmacro STEP 4 7 "reconnaissance vocale et voix" models 0
   !insertmacro STEP 5 7 "correction du texte" cleaner 0
   !insertmacro STEP 6 7 "lecture d'écran (Windows va demander ton accord)" ocr 0
-  !insertmacro STEP 7 7 "raccourcis" register 1
+  !insertmacro STEP 7 7 "menu Démarrer" register 1
 
   SetDetailsPrint both
   DetailPrint "Vocalis est prêt."
+SectionEnd
+
+Section "Raccourci sur le Bureau" SecDesktop
+  ${If} $Failed == "0"
+    nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "$INSTDIR\vocalis\scripts\install.ps1" -Step desktop'
+    Pop $0
+  ${EndIf}
 SectionEnd
