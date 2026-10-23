@@ -1,0 +1,43 @@
+# Reconnaissance vocale (Whisper). Bibliothèques NVIDIA : voir requirements-gpu.txt
+faster-whisper==1.2.1
+ctranslate2==4.8.3
+# Reconnaissance vocale Parakeet (processeur, sans carte graphique)
+sherpa-onnx>=1.12
+
+# Audio, interface, raccourcis
+sounddevice>=0.5
+numpy>=1.26
+PySide6>=6.8
+keyboard==0.13.5
+requests>=2.31
+
+# Lecture à voix haute (Piper) + alignement mot à mot
+piper-tts>=1.8.0
+onnx>=1.16
+
+# Voix en ligne de Microsoft Edge (Ariane, Raquel…) et décodage MP3
+edge-tts>=7.0
+miniaudio>=1.59
+winrt-Windows.Media.Transcoding>=3.2
+winrt-Windows.Media.MediaProperties>=3.2
+
+# Texte des applications (accessibilité Windows) pour la lecture sur place
+uiautomation>=2.0.20
+comtypes>=1.4
+
+# OCR intégré à Windows
+winrt-runtime>=3.2
+winrt-Windows.Foundation>=3.2
+winrt-Windows.Foundation.Collections>=3.2
+winrt-Windows.Globalization>=3.2
+winrt-Windows.Graphics.Imaging>=3.2
+winrt-Windows.Media.Ocr>=3.2
+winrt-Windows.Storage.Streams>=3.2
+
+# Voix intégrées à Windows (lecture)
+winrt-Windows.Media>=3.2
+winrt-Windows.Media.Core>=3.2
+winrt-Windows.Media.SpeechSynthesis>=3.2
+
+# Dictée avec la reconnaissance vocale en ligne de Windows
+winrt-Windows.Media.SpeechRecognition>=3.2

@@ -1,0 +1,3 @@
+# Seulement pour les PC avec une carte graphique NVIDIA (mode « Sur ce PC »)
+nvidia-cublas-cu12>=12.8,<13          # cuBLAS 12.8+ : compatible RTX 50 (Blackwell)
+nvidia-cudnn-cu12==9.10.2.21          # même version que celle attendue par ctranslate2 4.8.3

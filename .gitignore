@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+modeles/
+voix/
+build/
+_maj/
+/config.toml
+*.log
+*.log.*
+journal_installation/
+/vocalis.ico
