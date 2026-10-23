@@ -13,12 +13,13 @@ import requests
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QFrame,
-                               QGridLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget,
+                               QGridLayout, QHBoxLayout, QLabel, QListWidget,
                                QListWidgetItem, QMessageBox, QPlainTextEdit, QProgressBar,
                                QPushButton, QScrollArea, QSlider, QSpinBox, QStackedWidget,
-                               QVBoxLayout, QWidget)
+                               QAbstractItemView, QHeaderView, QTableWidget,
+                               QTableWidgetItem, QVBoxLayout, QWidget)
 
-from . import winutil
+from . import dictionary, winutil
 from .hardware import ENGINES, has_nvidia_gpu, resolve_engine
 from .languages import ALL as ALL_LANGS, active as active_languages, name as lang_name
 from .config import (DEFAULTS, LOG_PATH, MODELS_DIR, ROOT, key_label, load_config,
@@ -429,9 +430,12 @@ class SettingsWindow(QWidget):
         nav.setFixedWidth(200)
         self.stack = QStackedWidget()
         pages = [("État", self._page_state), ("Raccourcis", self._page_hotkeys),
-                 ("Dictée", self._page_dictation), ("Nettoyage", self._page_cleaning),
+                 ("Dictée", self._page_dictation), ("Dictionnaire", self._page_dictionary),
+                 ("Nettoyage", self._page_cleaning),
                  ("Lecture", self._page_reading), ("Général", self._page_general)]
+        self.page_index = {}
         for name, builder in pages:
+            self.page_index[name] = nav.count()
             QListWidgetItem(name, nav)
             self.stack.addWidget(self._scroll(builder()))
         nav.currentRowChanged.connect(self.stack.setCurrentIndex)
@@ -473,10 +477,19 @@ class SettingsWindow(QWidget):
         self._refresh_ollama_models()
 
     def show_page(self, page: str) -> None:
-        """Ouvre une page (« voix » : Lecture, sur le choix des narrateurs)."""
+        """Ouvre une page (« voix » : Lecture, sur le choix des narrateurs ;
+        « dictionnaire », « prononciation »)."""
+        if page in ("dictionnaire", "prononciation"):
+            i = self.page_index["Dictionnaire"]
+            self.nav.setCurrentRow(i)
+            if page == "prononciation":
+                area = self.stack.widget(i)
+                QTimer.singleShot(50, lambda: area.ensureWidgetVisible(self.pron_frame, 0, 20))
+            return
         if page == "voix":
-            self.nav.setCurrentRow(4)                       # Lecture
-            area = self.stack.widget(4)
+            i = self.page_index["Lecture"]
+            self.nav.setCurrentRow(i)
+            area = self.stack.widget(i)
             QTimer.singleShot(50, lambda: area.ensureWidgetVisible(self.voice_frame, 0, 20))
             self.voice_frame.setStyleSheet("QFrame#card { border: 2px solid #4DA3FF; }")
             QTimer.singleShot(2500, lambda: self.voice_frame.setStyleSheet(""))
@@ -696,11 +709,12 @@ class SettingsWindow(QWidget):
                          "retranscrit, corrigé, puis collé à l'endroit du curseur."))
         lay.addWidget(frame)
 
-        frame, c = card("Vocabulaire", "Noms propres ou mots techniques que Whisper doit "
-                                       "reconnaître (séparés par des virgules).")
-        self.txt_vocab = QLineEdit()
-        self.txt_vocab.setPlaceholderText("ex. Flávio, Lisboa, Wispr Flow, Kubernetes")
-        c.addWidget(self.txt_vocab)
+        frame, c = card("Vocabulaire")
+        c.addWidget(hint("Les noms propres et mots techniques se règlent dans la page "
+                         "« Dictionnaire »."))
+        btn = QPushButton("Ouvrir le dictionnaire")
+        btn.clicked.connect(lambda: self.show_page("dictionnaire"))
+        c.addLayout(row(btn))
         lay.addWidget(frame)
 
         frame, c = card("Réglages de Whisper")
@@ -722,7 +736,7 @@ class SettingsWindow(QWidget):
                    "Tout reste sur ce PC.",
         "parakeet": "Rapide sur n'importe quel processeur, ponctuation incluse. Tout reste sur "
                     "ce PC. Téléchargé au premier usage (465 Mo). Devine la langue tout seul ; "
-                    "le vocabulaire personnel n'est pas pris en compte.",
+                    "le dictionnaire sert seulement à corriger le texte final.",
         "windows": "La reconnaissance en ligne de Microsoft (celle de Win+H) : rien à "
                    "télécharger, mais le texte part chez Microsoft. Il faut Internet et "
                    "« Reconnaissance vocale en ligne » activée (Paramètres Windows > "
@@ -788,6 +802,168 @@ class SettingsWindow(QWidget):
                                  "dans les paramètres son de Windows.")
 
     # ------------------------------------------------------------------ page Nettoyage
+    # ------------------------------------------------------------------ page Dictionnaire
+    def _page_dictionary(self) -> QWidget:
+        w, lay = self._page("Dictionnaire", "Tes mots à toi : comment les écrire en "
+                            "dictée, et comment la voix doit les prononcer en lecture.")
+        frame, c = card("Mots de la dictée", "Noms, marques, mots techniques… Vocalis les "
+                        "écrit toujours comme ici. Si la reconnaissance entend autre chose, "
+                        "note-le dans la deuxième colonne (plusieurs possibilités séparées "
+                        "par des virgules).")
+        t = self.tbl_words = self._table(["Écrire ainsi", "Souvent entendu comme (facultatif)",
+                                          ""])
+        t.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
+        t.setColumnWidth(2, 80)
+        c.addWidget(t)
+        add = QPushButton("+ Ajouter un mot")
+        add.clicked.connect(lambda: self._add_row(self.tbl_words, ["", "", ""]))
+        rem = QPushButton("Supprimer")
+        rem.clicked.connect(lambda: self._remove_rows(self.tbl_words))
+        c.addLayout(row(add, rem))
+        self.chk_learn = QCheckBox("Apprendre de mes corrections")
+        c.addWidget(self.chk_learn)
+        c.addWidget(hint("Juste après une dictée, si tu corriges à la main un nom ou un mot "
+                         "technique mal écrit, Vocalis le retient (une notification "
+                         "s'affiche ; ces mots sont marqués « appris »). Tout reste sur ce PC."))
+        lay.addWidget(frame)
+
+        frame, c = card("Prononciation", "Pour que la voix dise bien un sigle, un nom "
+                        "étranger ou un mot technique. Écris la prononciation comme elle se "
+                        "lit, par exemple « SNCF » → « èsse ène cé èfe ».")
+        self.pron_frame = frame
+        t = self.tbl_pron = self._table(["Mot écrit", "Prononcer comme", "Langue"])
+        t.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
+        t.setColumnWidth(2, 130)
+        c.addWidget(t)
+        add = QPushButton("+ Ajouter une prononciation")
+        add.clicked.connect(lambda: self._add_pron("", "", ""))
+        rem = QPushButton("Supprimer")
+        rem.clicked.connect(lambda: self._remove_rows(self.tbl_pron))
+        self.btn_pron_test = QPushButton("▶ Écouter")
+        self.btn_pron_test.clicked.connect(self._test_pron)
+        self.lbl_pron = QLabel("")
+        self.lbl_pron.setObjectName("hint")
+        c.addLayout(row(add, rem, self.btn_pron_test, self.lbl_pron))
+        c.addWidget(hint("Les sigles écrits en majuscules (« US ») ne changent pas le mot "
+                         "en minuscules (« us »). La langue « Toutes » s'applique à chaque "
+                         "lecture."))
+        lay.addWidget(frame)
+        lay.addStretch(1)
+        self._load_dictionary(dictionary.load())
+        self.dict_original = self._collect_dictionary()
+        return w
+
+    @staticmethod
+    def _table(headers: list[str]) -> QTableWidget:
+        t = QTableWidget(0, len(headers))
+        t.setHorizontalHeaderLabels(headers)
+        t.verticalHeader().setVisible(False)
+        t.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        t.setSelectionBehavior(QAbstractItemView.SelectRows)
+        t.setEditTriggers(QAbstractItemView.AllEditTriggers)
+        t.setMinimumHeight(190)
+        t.setStyleSheet("QTableWidget { background: white; border: 1px solid #E3E3E8; "
+                        "border-radius: 6px; gridline-color: #EEEEF1; }")
+        return t
+
+    @staticmethod
+    def _add_row(t: QTableWidget, values: list[str], focus: bool = True) -> int:
+        r = t.rowCount()
+        t.insertRow(r)
+        for col, v in enumerate(values):
+            item = QTableWidgetItem(v)
+            if col == 2 and t.columnCount() == 3 and t.cellWidget(r, 2) is None \
+                    and t.horizontalHeaderItem(2).text() == "":
+                item.setFlags(Qt.ItemIsEnabled)          # colonne « appris »
+                item.setForeground(QColor("#6E6E73"))
+            t.setItem(r, col, item)
+        if focus:
+            t.setCurrentCell(r, 0)
+            t.editItem(t.item(r, 0))
+        return r
+
+    def _add_pron(self, ecrit: str, dit: str, langue: str, focus: bool = True) -> None:
+        t = self.tbl_pron
+        r = self._add_row(t, [ecrit, dit], focus)
+        cmb = QComboBox()
+        cmb.addItem("Toutes", "")
+        for code in ALL_LANGS:
+            cmb.addItem(lang_name(code), code)
+        combo_set(cmb, langue)
+        t.setCellWidget(r, 2, cmb)
+
+    @staticmethod
+    def _remove_rows(t: QTableWidget) -> None:
+        rows = sorted({i.row() for i in t.selectedIndexes()} or
+                      ({t.currentRow()} if t.currentRow() >= 0 else set()), reverse=True)
+        for r in rows:
+            t.removeRow(r)
+
+    @staticmethod
+    def _cell(t: QTableWidget, r: int, c: int) -> str:
+        item = t.item(r, c)
+        return item.text().strip() if item else ""
+
+    def _load_dictionary(self, data: dict) -> None:
+        self.tbl_words.setRowCount(0)
+        for e in data["dictee"]:
+            self._add_row(self.tbl_words, [e["mot"], ", ".join(e["entendu"]),
+                                           "appris" if e.get("appris") else ""], False)
+        self.tbl_pron.setRowCount(0)
+        for e in data["prononciation"]:
+            self._add_pron(e["ecrit"], e["dit"], e.get("langue", ""), False)
+        self.chk_learn.setChecked(bool(data.get("apprendre", True)))
+
+    def _collect_dictionary(self) -> dict:
+        data = dictionary.empty()
+        data["apprendre"] = self.chk_learn.isChecked()
+        t = self.tbl_words
+        for r in range(t.rowCount()):
+            mot = self._cell(t, r, 0)
+            if mot:
+                data["dictee"].append({
+                    "mot": mot,
+                    "entendu": [x.strip() for x in self._cell(t, r, 1).split(",") if x.strip()],
+                    "appris": self._cell(t, r, 2) == "appris"})
+        t = self.tbl_pron
+        for r in range(t.rowCount()):
+            ecrit, dit = self._cell(t, r, 0), self._cell(t, r, 1)
+            if ecrit and dit:
+                cmb = t.cellWidget(r, 2)
+                data["prononciation"].append({"ecrit": ecrit, "dit": dit,
+                                              "langue": combo_get(cmb) if cmb else ""})
+        return dictionary._clean(data)
+
+    def _test_pron(self) -> None:
+        """Lit le mot de la ligne choisie avec sa prononciation."""
+        from .tts import Tts
+        t = self.tbl_pron
+        r = t.currentRow()
+        if r < 0 or not self._cell(t, r, 1):
+            self.lbl_pron.setText("Choisis une ligne remplie.")
+            return
+        cmb = t.cellWidget(r, 2)
+        lang = (combo_get(cmb) if cmb else "") or (active_languages(self.cfg) or ["fr"])[0]
+        said = self._cell(t, r, 1)
+        cfg = self._collect()
+        self.btn_pron_test.setEnabled(False)
+        self.lbl_pron.setText("Lecture…")
+
+        def speak():
+            import sounddevice as sd
+            speech = Tts(cfg)._synth_raw(said, lang, 1.0)
+            sd.play(speech.audio, speech.sample_rate)
+            sd.wait()
+
+        def done(res):
+            self.btn_pron_test.setEnabled(True)
+            self.lbl_pron.setText(f"Erreur : {res}" if isinstance(res, Exception) else "")
+
+        run_bg(speak, done)
+
+    def _dictionary_changed(self) -> bool:
+        return self._collect_dictionary() != self.dict_original
+
     def _page_cleaning(self) -> QWidget:
         w, lay = self._page("Nettoyage", "Quand tu as fini de parler, un petit modèle de "
                                          "langage local corrige la ponctuation et enlève les "
@@ -1176,7 +1352,6 @@ class SettingsWindow(QWidget):
         self.chk_replace.setChecked(bool(d["remplacer_par_version_nettoyee"]))
         self.sld_interval.setValue(int(round(float(d["intervalle_secondes"]) * 10)))
         self.sld_interval.valueChanged.emit(self.sld_interval.value())
-        self.txt_vocab.setText(d["vocabulaire"])
         combo_set(self.cmb_whisper, d["modele_whisper"])
         combo_set(self.cmb_device, d["appareil"])
         combo_set(self.cmb_engine, d.get("moteur", "auto"))
@@ -1208,7 +1383,6 @@ class SettingsWindow(QWidget):
         d["ecrire_en_direct"] = self.chk_live.isChecked()
         d["remplacer_par_version_nettoyee"] = self.chk_replace.isChecked()
         d["intervalle_secondes"] = self.sld_interval.value() / 10
-        d["vocabulaire"] = self.txt_vocab.text().strip()
         d["modele_whisper"] = combo_get(self.cmb_whisper)
         d["appareil"] = combo_get(self.cmb_device)
         d["type_calcul"] = "float16" if d["appareil"] == "cuda" else "int8"
@@ -1264,6 +1438,7 @@ class SettingsWindow(QWidget):
             # actuel : un réglage modifié ailleurs entre-temps (narrateur choisi dans
             # la barre de lecture, vitesse…) n'est jamais écrasé.
             fresh = load_config()
+            config_changed = False
             for section, values in cfg.items():
                 if not isinstance(values, dict):
                     continue
@@ -1271,8 +1446,12 @@ class SettingsWindow(QWidget):
                 for key, value in values.items():
                     if before.get(key) != value:
                         fresh.setdefault(section, {})[key] = value
-            save_config(fresh)
+                        config_changed = True
+            if config_changed:
+                save_config(fresh)
             cfg = fresh
+            if self._dictionary_changed():
+                dictionary.save(self._collect_dictionary())
         except Exception as exc:
             QMessageBox.critical(self, "Vocalis", f"Enregistrement impossible :\n{exc}")
             return
@@ -1287,8 +1466,12 @@ class SettingsWindow(QWidget):
         self.close()
         if added:
             self._prepare_languages(added)
-        else:
+        elif config_changed:
             self.saved.emit()
+        else:
+            # Seul le dictionnaire a changé : il est pris en compte tout de suite,
+            # sans redémarrer.
+            self.closedWithoutSave.emit()
 
     def _prepare_languages(self, added: list[str]) -> None:
         """Nouvelle(s) langue(s) : tout est préparé automatiquement, avec une fenêtre de
@@ -1321,7 +1504,8 @@ class SettingsWindow(QWidget):
 
     def closeEvent(self, e) -> None:
         self._stop_mic()
-        if not self._saved and self._collect() != self.original:
+        if not self._saved and (self._collect() != self.original
+                                or self._dictionary_changed()):
             answer = QMessageBox.question(
                 self, "Vocalis", "Enregistrer les modifications ?",
                 QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel)

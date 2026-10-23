@@ -170,10 +170,19 @@ class TrayPanel(QWidget):
         line.setStyleSheet("background: rgba(255,255,255,28);")
         lay.addSpacing(4)
         lay.addWidget(line)
+        top = QHBoxLayout()
+        top.setSpacing(6)
+        for label, key, name in (("Paramètres", "settings", "primary"),
+                                 ("Dictionnaire", "dictionary", "foot")):
+            b = QPushButton(label)
+            b.setObjectName(name)
+            b.setCursor(Qt.PointingHandCursor)
+            b.clicked.connect(lambda _=False, k=key: self._run(k))
+            top.addWidget(b, 1)
+        lay.addLayout(top)
         foot = QHBoxLayout()
         foot.setSpacing(6)
-        for label, key, name in (("Paramètres", "settings", "primary"),
-                                 ("Journal", "log", "foot"),
+        for label, key, name in (("Journal", "log", "foot"),
                                  ("Redémarrer", "restart", "foot")):
             b = QPushButton(label)
             b.setObjectName(name)

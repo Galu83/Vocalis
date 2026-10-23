@@ -91,6 +91,11 @@ class Cleaner:
             return ""                       # seulement des « euh »
         context = context.strip()[-300:]
         before = f"<avant>\n{context}\n</avant>\n" if context else ""
+        from . import dictionary
+        vocab = dictionary.vocabulary()
+        if vocab:
+            before = ("Orthographe exacte à respecter pour ces noms et mots : "
+                      + ", ".join(vocab[:80]) + "\n" + before)
         body = {
             "model": self.model,
             "stream": False,

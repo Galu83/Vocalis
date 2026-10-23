@@ -26,6 +26,7 @@ PARAGRAPH, CHARACTER = 4, 0           # TextUnit
 START, END = 0, 1                     # TextPatternRangeEndpoint
 TEXT_PATTERN = 10014                  # PatternId.TextPattern
 MAX_CHARS = 8000
+FIELD_CHARS = 60000
 MAX_PARAS = 60
 MIN_SELECTION_WORDS = 3           # en dessous : on lit tout le paragraphe
 
@@ -101,6 +102,11 @@ class UiaReader(threading.Thread):
 
     def selection(self) -> Future:
         return self._submit(self._selection)
+
+    def field_snapshot(self) -> Future:
+        """(identifiant, texte) de la case où l'on écrit, ou None (apprentissage des
+        corrections après une dictée)."""
+        return self._submit(self._field_snapshot)
 
     def set_words(self, words: list[tuple[int, str]]) -> Future:
         return self._submit(self._set_words, words)
@@ -216,6 +222,29 @@ class UiaReader(threading.Thread):
             return (vp.Value or "")[:4000]
         except Exception:
             return ""
+
+    def _field_snapshot(self):
+        import os
+        ctrl = self.auto.GetFocusedControl()
+        if ctrl is None or ctrl.ProcessId == os.getpid():
+            return None
+        try:
+            key = (ctrl.ProcessId, tuple(ctrl.GetRuntimeId()))
+        except Exception:
+            key = (ctrl.ProcessId, ctrl.ControlTypeName, ctrl.AutomationId, ctrl.ClassName)
+        text = None
+        pat = self._pattern_up(ctrl)
+        if pat is not None:
+            try:
+                text = self._text(pat.DocumentRange)[:FIELD_CHARS]
+            except Exception:
+                text = None
+        if text is None:
+            try:
+                text = (ctrl.GetValuePattern().Value or "")[:FIELD_CHARS]
+            except Exception:
+                return None
+        return key, text
 
     def _selection(self) -> UiaDoc | None:
         pat = self._pattern_up(self.auto.GetFocusedControl())

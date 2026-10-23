@@ -29,6 +29,16 @@ Pour désinstaller : **Paramètres Windows > Applications > Vocalis > Désinstal
 
 **Écouter dans une autre langue :** pendant une lecture, le badge de langue de la barre permet de choisir la langue d'écoute. Le texte est traduit si besoin, et ce choix est mémorisé.
 
+## Dictionnaire
+
+Paramètres > Dictionnaire (ou bouton **Dictionnaire** dans le panneau de l'icône) :
+
+- **Mots de la dictée** : noms, marques, mots techniques écrits toujours comme tu le veux. Tu peux noter ce que la reconnaissance entend à la place (« vocal is » → « Vocalis »).
+- **Apprendre de mes corrections** : juste après une dictée, si tu corriges à la main un nom ou un mot technique, Vocalis le retient et te le signale.
+- **Prononciation** : comment la voix doit dire un sigle ou un nom (« SNCF » → « èsse ène cé èfe »), pour toutes les langues ou une seule. Accessible aussi depuis le menu de langue de la barre de lecture.
+
+Les changements du dictionnaire s'appliquent tout de suite, sans redémarrer.
+
 ## Moteurs de dictée
 
 | Moteur | Pour qui |

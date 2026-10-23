@@ -144,11 +144,14 @@ class DictationSession(threading.Thread):
     def _finalize(self, raw: str, lang: str) -> str:
         """Correction de la dictée (qui remplace la sélection), ou à défaut la sélection
         elle-même, puis traduction si une langue a été choisie."""
+        from . import dictionary
+        raw = dictionary.apply_dictation(raw)
         spoken = raw
         if raw and self.cleaner.enabled and self.replace:
             self.on_state("cleaning", "")
             spoken = self.cleaner.clean(raw, lang) or raw
             log.info("Texte corrigé : %s", spoken)
+        spoken = dictionary.apply_dictation(spoken)
         full = spoken if raw else self.selection
         if self.target and self.translator is not None and full:
             self.on_state("cleaning", "Traduction…")
@@ -208,6 +211,8 @@ class DictationSession(threading.Thread):
             time.sleep(0.05)
         winutil.paste_text(text)
         self.typed = text
+        if not self.target:
+            self.on_state("inserted", text)      # pour apprendre des corrections
         return ""
 
     def run(self) -> None:

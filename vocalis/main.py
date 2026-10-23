@@ -47,6 +47,7 @@ class Bridge(QObject):
     altClick = Signal(int, int)                  # Alt + clic pendant une lecture
     plainClick = Signal(int, int, bool)          # essai : clic / double-clic en lecture
     openSettings = Signal(str)                   # ouvrir les paramètres à une page
+    learned = Signal(str, str)                   # mot appris par le dictionnaire
 
 
 # =========================================================================== application
@@ -77,6 +78,9 @@ class App(QObject):
         self.pill.languages = active_languages(self.cfg)
         self.reading = ReadingController(self.cfg, self.bridge, self.pill)
         self.reading.on_active_changed = self._reading_active
+        from .learning import CorrectionWatcher
+        self.learner = CorrectionWatcher(self.reading.uia,
+                                         lambda old, new: self.bridge.learned.emit(old, new))
         # Alt + clic pendant une lecture : relancer au paragraphe cliqué.
         self.alt_hook = AltClickHook(lambda x, y: self.bridge.altClick.emit(x, y),
                                      lambda x, y, d: self.bridge.plainClick.emit(x, y, d))
@@ -90,6 +94,7 @@ class App(QObject):
         b.altClick.connect(self.reading.alt_click)
         b.plainClick.connect(self.reading.plain_click)
         b.openSettings.connect(self.open_settings)
+        b.learned.connect(self._on_learned)
         b.updateFound.connect(self._on_update_found)
         self._update_dialog = None
         self._update_manual = False
@@ -173,6 +178,14 @@ class App(QObject):
             sock.disconnectFromServer()
 
         sock.readyRead.connect(read)
+
+    def _on_learned(self, old: str, new: str) -> None:
+        log.info("Mot appris : %s -> %s", old, new)
+        self.tray.showMessage(
+            "Vocalis a appris un mot",
+            f"« {new} » sera écrit ainsi (au lieu de « {old} »).\n"
+            "Paramètres > Dictionnaire pour le modifier.",
+            QSystemTrayIcon.Information, 5000)
 
     def open_settings(self, page: str = "") -> None:
         from .settings_ui import SettingsWindow
@@ -371,6 +384,7 @@ class App(QObject):
             "engine": self.switch_engine,
             "click_stop": self._toggle_click_mode,
             "settings": lambda: self.open_settings(),
+            "dictionary": lambda: self.open_settings("dictionnaire"),
             "log": lambda: os.startfile(str(LOG_PATH)),
             "restart": self._restart,
             "quit": self._quit,
@@ -541,6 +555,7 @@ class App(QObject):
                                      autohide_ms=1500)
             return
         self.mode = mode
+        self.learner.stop()
         self.reading.stop()          # une lecture en cours s'arrête (les deux s'excluent)
         report = lambda s, t: self.bridge.dictState.emit(s, t)  # noqa: E731
         if getattr(self, "engine", "") == "windows":
@@ -637,6 +652,8 @@ class App(QObject):
             self.pill.show_state("finishing", "Finalisation…")
         elif state == "cleaning":
             self.pill.show_state("cleaning", "Nettoyage…")
+        elif state == "inserted":
+            self.learner.watch(text)
         elif state == "cancelled":
             self.pill.set_language("")
             self.pill.end_session()

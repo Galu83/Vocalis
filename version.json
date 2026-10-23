@@ -1,5 +1,5 @@
 {
-  "version": "2.0.0",
+  "version": "2.1.0",
   "branch": "main",
-  "notes": "• Nouveau nom : Vocalis\n• Installation classique avec raccourci sur le Bureau\n• Mises à jour automatiques\n• Ajout de langues en un clic (espagnol, italien, néerlandais, polonais)"
+  "notes": "Nouveau : le dictionnaire. Tes mots à toi (noms, marques, mots techniques) sont toujours bien écrits en dictée, Vocalis apprend de tes corrections, et tu peux régler la prononciation de la voix. Paramètres > Dictionnaire."
 }

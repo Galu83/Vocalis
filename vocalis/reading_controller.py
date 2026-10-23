@@ -677,6 +677,9 @@ class ReadingController(QObject):
         act = QAction("     Changer de narrateur…", menu)
         act.triggered.connect(lambda: self.bridge.openSettings.emit("voix"))
         menu.addAction(act)
+        act = QAction("     Corriger une prononciation…", menu)
+        act.triggered.connect(lambda: self.bridge.openSettings.emit("prononciation"))
+        menu.addAction(act)
         btn = self.controls.btn_lang
         # Menu non bloquant : il se ferme tout seul avec la barre de lecture.
         self._close_menu()

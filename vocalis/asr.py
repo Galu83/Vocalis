@@ -160,7 +160,8 @@ class Asr:
     def transcribe_words(self, audio: np.ndarray, language: str, prompt: str = "",
                          beam_size: int = 2,
                          condition_on_previous_text: bool = False) -> list[Word]:
-        full_prompt = ", ".join(x for x in (self.vocab, prompt) if x) or None
+        from . import dictionary
+        full_prompt = ", ".join(x for x in (dictionary.prompt_words(), prompt) if x) or None
         segments, _ = self.model.transcribe(
             audio,
             language=language,

@@ -218,13 +218,32 @@ class Tts:
 
     # ------------------------------------------------------------------ API
     def synth(self, text: str, lang: str, speed: float) -> Speech:
-        sp = self._synth_raw(text, lang, speed)
+        sp = self._synth_pronounced(text, lang, speed)
         gap = self.pause / max(0.5, speed)
         try:
             return shape_pauses(sp.audio, sp.sample_rate, sp.word_bounds, gap)
         except Exception:
             log.exception("Raccourcissement des pauses impossible")
             return sp
+
+    def _synth_pronounced(self, text: str, lang: str, speed: float) -> Speech:
+        """Applique le dictionnaire de prononciation ; les repères de mots restent
+        rattachés aux mots du texte d'origine."""
+        from . import dictionary
+        try:
+            spoken, mapping = dictionary.pronounce(text, lang)
+        except Exception:
+            log.exception("Dictionnaire de prononciation illisible")
+            spoken, mapping = text, None
+        if mapping is None:
+            return self._synth_raw(text, lang, speed)
+        sp = self._synth_raw(spoken, lang, speed)
+        n = len(spoken.split())
+        if sp.word_bounds and len(sp.word_bounds) == n:
+            sp.word_bounds = [sp.word_bounds[m] for m in mapping]
+        else:
+            sp.word_bounds = None
+        return sp
 
     def _synth_raw(self, text: str, lang: str, speed: float) -> Speech:
         v = self.voice_for(lang)
