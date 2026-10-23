@@ -189,6 +189,8 @@ def is_plausible(old: str, new: str) -> bool:
     flat_o, flat_n = re.sub(r"[\s\-']", "", o.lower()), re.sub(r"[\s\-']", "", n.lower())
     ratio = difflib.SequenceMatcher(None, flat_o, flat_n).ratio()
     joined = len(o.split()) != len(n.split())
+    if n[:1].isupper() and ratio >= 0.25:
+        return True                  # un nom propre mal entendu (« Vistly » -> « Bechtle »)
     return ratio >= (0.4 if joined else 0.5)
 
 
@@ -253,6 +255,7 @@ def find_corrections(before: str, after: str, inserted: str) -> list[tuple[str, 
     ws = len(_words(before[:pos]))
     we = ws + len(_words(inserted))
     a, b = _words(before), _words(after)
+    known = set(vocabulary())
     out = []
     sm = difflib.SequenceMatcher(None, a, b, autojunk=False)
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
@@ -261,7 +264,9 @@ def find_corrections(before: str, after: str, inserted: str) -> list[tuple[str, 
         if not (1 <= i2 - i1 <= 3 and 1 <= j2 - j1 <= 3):
             continue
         old, new = " ".join(a[i1:i2]), " ".join(b[j1:j2])
-        if is_learnable(old, new):
+        if _core(new) in known and _core(old).lower() != _core(new).lower():
+            out.append((_core(old), _core(new), True))     # mot déjà dans le dictionnaire
+        elif is_learnable(old, new):
             out.append((_core(old), _core(new), True))
         elif is_plausible(old, new):
             out.append((_core(old), _core(new), False))
