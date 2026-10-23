@@ -24,7 +24,8 @@ log = logging.getLogger(__name__)
 
 REPO = "Galu83/Vocalis"
 VERSION_URL = f"https://raw.githubusercontent.com/{REPO}/main/version.json"
-ZIP_URL = "https://codeload.github.com/" + REPO + "/zip/refs/tags/{tag}"
+# Le code publié est celui de la branche main (version.json en fait partie).
+ZIP_URL = "https://codeload.github.com/" + REPO + "/zip/refs/heads/{branch}"
 SETUP_URL = f"https://github.com/{REPO}/raw/main/dist/Vocalis-Setup.exe"
 # Ce qui est remplacé lors d'une mise à jour (jamais : réglages, modèles, voix, .venv).
 REPLACED = ("vocalis", "requirements.txt", "requirements-gpu.txt", "README.md")
@@ -50,7 +51,7 @@ def check(timeout: float = 8) -> dict | None:
     with urllib.request.urlopen(req, timeout=timeout) as r:
         info = json.loads(r.read().decode("utf-8"))
     if parse(info.get("version", "0")) > parse(__version__):
-        info.setdefault("tag", "v" + info["version"])
+        info.setdefault("branch", "main")
         return info
     return None
 
@@ -58,7 +59,7 @@ def check(timeout: float = 8) -> dict | None:
 def install(info: dict, progress: Callable[[int, str], None]) -> None:
     """Télécharge la version et remplace le programme. Lève une erreur si besoin
     (l'ancienne version est alors remise en place)."""
-    url = ZIP_URL.format(tag=info["tag"])
+    url = ZIP_URL.format(branch=info.get("branch", "main"))
     progress(0, "Téléchargement de la nouvelle version…")
     req = urllib.request.Request(url, headers={"User-Agent": f"Vocalis/{__version__}"})
     buf = io.BytesIO()
