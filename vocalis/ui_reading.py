@@ -176,6 +176,9 @@ class Controls(QWidget):
         self.dot = QLabel("●")
         self.dot.setObjectName("dot")
         lay.addWidget(self.dot)
+        from .ui_spinner import Spinner
+        self.spinner = Spinner(12)
+        lay.addWidget(self.spinner)
         self.btn_play = self._btn("", "Pause / reprendre", self.playPause.emit)
         self.btn_play.setIcon(_icon("pause"))
         lay.addSpacing(4)
@@ -236,9 +239,17 @@ class Controls(QWidget):
             self.setCursor(Qt.OpenHandCursor)
 
     def set_state(self, state: str) -> None:
-        playing = state == "playing"
+        """playing, paused, stopped, ou loading (texte, voix ou traduction en préparation :
+        le petit cercle tourne)."""
+        loading = state == "loading"
+        playing = state in ("playing", "loading")
         self.btn_play.setIcon(_icon("pause" if playing else "play"))
         self.dot.setStyleSheet(f"color: {'#4DA3FF' if playing else '#8E8E96'};")
+        self.dot.setVisible(not loading)
+        if loading:
+            self.spinner.start()
+        else:
+            self.spinner.stop()
 
     def set_speed(self, speed: float) -> None:
         self.lbl_speed.setText(f"{speed:.1f}×")

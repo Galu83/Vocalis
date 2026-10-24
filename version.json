@@ -1,5 +1,5 @@
 {
-  "version": "2.5.9",
+  "version": "2.5.10",
   "branch": "main",
-  "notes": "• Lecture : une traduction impossible n'arrête plus la lecture ; le passage est lu en version originale.\n• Traduction en ligne : Google prend le relais quand le service de Microsoft ne répond pas.\n• Détection de langue : un passage français avec des mots anglais (noms de logiciels…) reste en français.\n• Le badge de langue suit le passage lu (« FR », ou « EN→FR » seulement s'il est traduit)."
+  "notes": "• Un petit cercle qui tourne montre quand Vocalis prépare quelque chose (voix, traduction, réponse de l'assistant) : il n'a pas planté, il travaille.\n• La lecture continue si une traduction échoue ; Google prend le relais si Microsoft ne répond pas.\n• Badge de langue selon le passage lu."
 }

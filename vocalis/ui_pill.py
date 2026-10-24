@@ -344,7 +344,8 @@ class Pill(QWidget):
             p.setFont(f)
             p.drawText(br, Qt.AlignCenter, self.lang)
             p.setFont(self.font())
-        if self.state in ("finishing", "cleaning"):
+        if self.state in ("finishing", "cleaning") or (self.state == "info"
+                                                         and self.text.endswith("…")):
             # petit indicateur qui tourne
             p.setPen(QPen(self.color, 2.5, Qt.SolidLine, Qt.RoundCap))
             p.drawArc(QRectF(cx - 7, cy - 7, 14, 14), int(-t * 360 * 16) % (360 * 16), 270 * 16)

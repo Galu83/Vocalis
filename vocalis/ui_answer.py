@@ -68,6 +68,9 @@ class AnswerCard(QWidget):
         title.setObjectName("head")
         head.addWidget(title)
         head.addStretch(1)
+        from .ui_spinner import Spinner
+        self.spinner = Spinner(12)
+        head.addWidget(self.spinner)
         self.lbl_status = QLabel("")
         self.lbl_status.setObjectName("status")
         head.addWidget(self.lbl_status)
@@ -153,6 +156,11 @@ class AnswerCard(QWidget):
 
     def set_status(self, text: str) -> None:
         self.lbl_status.setText(text)
+        # « Réflexion… », « Réécriture… », « Nouvel essai… » : le cercle tourne.
+        if text.endswith("…"):
+            self.spinner.start()
+        else:
+            self.spinner.stop()
 
     def set_playing(self, playing: bool) -> None:
         self.btn_play.setText("⏸ Pause" if playing else "▶ Lire")

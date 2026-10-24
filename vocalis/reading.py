@@ -333,7 +333,14 @@ class Player(QObject):
                     if nxt < len(segs) and nxt not in futures:
                         futures[nxt] = self._pool.submit(self._synth, *segs[nxt], speed, lang,
                                                          target)
-                speech = futures.pop(k).result()
+                fut = futures.pop(k)
+                if not fut.done() and gen == self._gen and not self._paused.is_set():
+                    self.stateChanged.emit("loading")       # voix ou traduction en cours
+                    speech = fut.result()
+                    if gen == self._gen and not self._paused.is_set():
+                        self.stateChanged.emit("playing")
+                else:
+                    speech = fut.result()
                 if gen != self._gen:
                     return
                 if stream is None or stream.samplerate != speech.sample_rate:
