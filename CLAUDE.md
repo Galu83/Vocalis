@@ -55,6 +55,12 @@ Installation : `%LOCALAPPDATA%\Programs\Vocalis`.
 
 ## Publier une version (à chaque changement destiné à Flavio)
 
+Accord permanent de Flavio (oct. 2026) : la session « Atelier » intègre et publie seule
+quand les tests passent et qu'elle a vérifié le travail. Elle ne montre à Flavio que ce
+qu'il doit voir ou entendre (captures, échantillons). Les sessions de travail, elles,
+commitent sur leur propre branche et ne publient jamais : c'est Atelier qui intègre, et
+qui attribue les numéros de version au moment de l'intégration.
+
 1. Augmenter `__version__` dans `vocalis/__init__.py`.
 2. Mettre à jour `version.json` : même numéro, `notes` courtes en français (« • … »).
    C'est ce texte qui s'affiche dans la fenêtre de mise à jour.
