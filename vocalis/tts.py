@@ -18,6 +18,18 @@ log = logging.getLogger(__name__)
 _SKIP = {"^", "$", "_"}                    # début, fin, remplissage
 _PUNCT = set(",.;:!?¡¿—–-…\"«»“”()")
 
+# Voix Edge et Internet lent : au-delà de ces délais, le passage est lu avec la voix
+# du PC, et les suivants aussi pendant EDGE_SLOW_PAUSE secondes.
+EDGE_FIRST_AUDIO = 3.0                     # premier son attendu en moins de 3 s
+EDGE_MARGIN = 3.0                          # retard toléré sur la durée du son reçu
+EDGE_SLOW_PAUSE = 180                      # voix du PC pendant 3 min, puis nouvel essai
+EDGE_DOWN_PAUSE = 60                       # service injoignable : nouvel essai dans 1 min
+EDGE_BYTES_PER_S = 6000                    # MP3 d'Edge : 48 kbit/s
+
+
+class EdgeSlow(RuntimeError):
+    """Edge répond, mais trop lentement pour une lecture fluide."""
+
 
 @dataclass
 class Speech:
@@ -82,6 +94,12 @@ class Tts:
         self._piper_run = threading.Lock()      # une seule synthèse Piper à la fois
         # pause gardée après un point (en secondes à vitesse normale)
         self.pause = float(lec.get("pause_phrases", 0.2))
+        # Bascule temporaire vers la voix du PC (Internet lent ou coupé). Jamais
+        # enregistrée dans la configuration : le narrateur choisi reste le même.
+        self._edge_lock = threading.Lock()
+        self._edge_bad_until = 0.0
+        self._edge_bad_why = ""                 # "lent" ou "injoignable"
+        self._edge_probing = False
 
     def voice_for(self, lang: str) -> V.Voice:
         return self.choice.get(lang) or V.from_config("", lang)
@@ -188,33 +206,143 @@ class Tts:
         return Speech(audio, rate, bounds)
 
     # ------------------------------------------------------------------ Edge (en ligne)
-    def _synth_edge(self, v: V.Voice, text: str, speed: float) -> Speech:
+    def _synth_edge(self, v: V.Voice, text: str, speed: float, watch: bool = False,
+                    alone: bool = False) -> Speech:
+        """watch : abandonner (EdgeSlow) si le son arrive trop lentement pour être lu
+        sans attente, ou (sauf alone) si un autre passage vient de constater
+        qu'Internet est lent. Le temps passé est noté dans Speech.edge_spent."""
         import asyncio
 
         import edge_tts
 
         pct = int(round((max(0.5, min(3.0, speed)) - 1.0) * 100))
         rate = f"{pct:+d}%"
+        t0 = time.monotonic()
 
         async def run():
             com = edge_tts.Communicate(text, v.key, rate=rate, boundary="WordBoundary",
-                                       connect_timeout=8, receive_timeout=30)
+                                       connect_timeout=5, receive_timeout=30)
             audio = bytearray()
             marks = []
-            async for chunk in com.stream():
-                if chunk["type"] == "audio":
-                    audio += chunk["data"]
-                elif chunk["type"] == "WordBoundary":
-                    marks.append((chunk["text"], chunk["offset"] / 1e7))
+
+            async def pull():
+                async for chunk in com.stream():
+                    if chunk["type"] == "audio":
+                        audio.extend(chunk["data"])
+                    elif chunk["type"] == "WordBoundary":
+                        marks.append((chunk["text"], chunk["offset"] / 1e7))
+
+            task = asyncio.ensure_future(pull())
+            while not task.done():
+                await asyncio.wait({task}, timeout=0.1)
+                why = self._edge_too_slow(t0, len(audio), alone) \
+                    if watch and not task.done() else ""
+                if why:
+                    task.cancel()
+                    try:
+                        await task
+                    except BaseException:
+                        pass
+                    raise EdgeSlow(why)
+            task.result()
             return bytes(audio), marks
 
+        # Pas asyncio.run : après un abandon, il attendrait la fin de la recherche
+        # d'adresse (DNS) en cours, parfois très longue sur une connexion lente.
+        loop = asyncio.new_event_loop()
         try:
-            mp3, marks = asyncio.run(run())
+            mp3, marks = loop.run_until_complete(run())
         except edge_tts.exceptions.NoAudioReceived:
             # Morceau sans rien à prononcer (tiret, symbole…) : un court silence.
             return Speech(np.zeros(2400, dtype=np.int16), 24000, None)
+        finally:
+            try:
+                loop.run_until_complete(loop.shutdown_asyncgens())
+            except Exception:
+                pass
+            loop.close()                # sans attendre les recherches d'adresse
         audio, rate_hz = decode_mp3(mp3)
-        return Speech(audio, rate_hz, align_marks(text, marks, rate_hz))
+        sp = Speech(audio, rate_hz, align_marks(text, marks, rate_hz))
+        sp.edge_spent = time.monotonic() - t0
+        log.debug("Voix Edge : %.1f s de son en %.1f s", len(audio) / max(1, rate_hz),
+                  sp.edge_spent)
+        return sp
+
+    @staticmethod
+    def _edge_slow_result(sp: Speech) -> str:
+        """Son obtenu, mais moins vite qu'il ne se lit : raison, ou "" si tout va bien."""
+        spent = getattr(sp, "edge_spent", 0.0)
+        heard = len(sp.audio) / max(1, sp.sample_rate)
+        if spent > max(EDGE_FIRST_AUDIO, heard):
+            return f"{heard:.1f} s de son en {spent:.1f} s"
+        return ""
+
+    def _edge_too_slow(self, t0: float, received: int, alone: bool = False) -> str:
+        """Raison d'abandonner une synthèse Edge en cours, ou "" si tout va bien."""
+        spent = time.monotonic() - t0
+        if not received and spent > EDGE_FIRST_AUDIO:
+            return f"aucun son après {spent:.1f} s"
+        heard = received / EDGE_BYTES_PER_S
+        if received and spent > heard + EDGE_MARGIN:
+            return f"{heard:.1f} s de son en {spent:.1f} s"
+        if not alone and self._edge_bad():
+            return "Internet lent constaté sur un autre passage"
+        return ""
+
+    def _edge_bad(self) -> bool:
+        return time.monotonic() < self._edge_bad_until
+
+    def _edge_mark(self, why: str, detail: str, v: V.Voice, fallback) -> None:
+        """Voix du PC pour un moment (sans toucher aux réglages)."""
+        pause = EDGE_SLOW_PAUSE if why == "lent" else EDGE_DOWN_PAUSE
+        with self._edge_lock:
+            was = self._edge_bad_why
+            self._edge_bad_until = time.monotonic() + pause
+            self._edge_bad_why = why
+        if was == why:
+            log.info("Voix %s : toujours %s (%s), nouvel essai dans %d min", v.name,
+                     why, detail, max(1, pause // 60))
+        elif why == "lent":
+            log.warning("Internet lent (%s) : voix %s utilisée à la place de %s "
+                        "pendant %d min", detail, fallback.name, v.name, pause // 60)
+        else:
+            log.warning("Voix en ligne %s indisponible (%s) : voix %s utilisée",
+                        v.name, detail, fallback.name)
+
+    def _edge_probe(self, v: V.Voice, text: str, speed: float, fallback) -> None:
+        """Bascule terminée : réessaie Edge en arrière-plan (le son est jeté). Pendant
+        l'essai, la lecture continue avec la voix du PC ; si la connexion est redevenue
+        bonne, les passages suivants reprennent la voix choisie."""
+        with self._edge_lock:
+            if self._edge_probing:
+                return
+            self._edge_probing = True
+            self._edge_bad_until = time.monotonic() + 30
+
+        def work():
+            try:
+                sp = self._synth_edge(v, text, speed, watch=True, alone=True)
+                slow = self._edge_slow_result(sp)
+                if slow:
+                    raise EdgeSlow(slow)
+                with self._edge_lock:
+                    self._edge_bad_until = 0.0
+                    self._edge_bad_why = ""
+                log.info("Internet de nouveau rapide : retour à la voix %s", v.name)
+            except EdgeSlow as exc:
+                self._edge_mark("lent", str(exc), v, fallback)
+            except Exception as exc:
+                self._edge_mark("injoignable", str(exc), v, fallback)
+            finally:
+                with self._edge_lock:
+                    self._edge_probing = False
+
+        threading.Thread(target=work, daemon=True, name="essai-edge").start()
+
+    def _synth_local(self, v: V.Voice, text: str, speed: float) -> Speech:
+        if v.engine == "windows":
+            return self._synth_windows(v, text, speed)
+        return self._synth_piper(v, text, speed)
 
     # ------------------------------------------------------------------ API
     def synth(self, text: str, lang: str, speed: float) -> Speech:
@@ -270,29 +398,37 @@ class Tts:
 
     def _synth_raw(self, text: str, lang: str, speed: float) -> Speech:
         v = self.voice_for(lang)
-        if v.engine == "edge":
-            try:
-                from .hardware import offline
-                if offline():
-                    raise RuntimeError("pas d'Internet (mode test hors ligne) il y a peu")
-                if time.monotonic() < getattr(self, "_edge_down_until", 0.0):
-                    raise RuntimeError("service en ligne injoignable il y a peu")
-                return self._synth_edge(v, text, speed)
-            except Exception as exc:
-                if "il y a peu" not in str(exc):
-                    self._edge_down_until = time.monotonic() + 60
-                # Pas d'Internet (ou service indisponible) : voix installée sur le PC.
-                fallback = self._offline_voice(lang)
-                if fallback is None:
-                    raise
-                log.warning("Voix en ligne %s indisponible (%s) : voix %s utilisée",
-                            v.name, exc, fallback.name)
-                if fallback.engine == "windows":
-                    return self._synth_windows(fallback, text, speed)
-                return self._synth_piper(fallback, text, speed)
-        if v.engine == "windows":
-            return self._synth_windows(v, text, speed)
-        return self._synth_piper(v, text, speed)
+        if v.engine != "edge":
+            return self._synth_local(v, text, speed)
+        # Voix en ligne. Pas d'Internet, service indisponible ou Internet trop lent :
+        # voix installée sur le PC, le temps que la connexion redevienne bonne.
+        fallback = self._offline_voice(lang)
+        if fallback is None:
+            return self._synth_edge(v, text, speed)     # aucune autre voix : on attend
+        from .hardware import offline
+        if offline():
+            log.warning("Voix en ligne %s indisponible (pas d'Internet, mode test hors "
+                        "ligne) : voix %s utilisée", v.name, fallback.name)
+            return self._synth_local(fallback, text, speed)
+        if self._edge_bad_why:
+            if not self._edge_bad():
+                self._edge_probe(v, text, speed, fallback)
+            return self._synth_local(fallback, text, speed)
+        try:
+            sp = self._synth_edge(v, text, speed, watch=True)
+        except EdgeSlow as exc:
+            if not self._edge_bad():                    # pas déjà constaté ailleurs
+                self._edge_mark("lent", str(exc), v, fallback)
+            return self._synth_local(fallback, text, speed)
+        except Exception as exc:
+            if not self._edge_bad():
+                self._edge_mark("injoignable", str(exc), v, fallback)
+            return self._synth_local(fallback, text, speed)
+        slow = self._edge_slow_result(sp)
+        if slow and not self._edge_bad():
+            # Ce passage est prêt, on le garde ; les suivants prendront la voix du PC.
+            self._edge_mark("lent", slow, v, fallback)
+        return sp
 
 
 def shape_pauses(audio: np.ndarray, rate: int, bounds, gap: float) -> Speech:

@@ -1,5 +1,5 @@
 {
-  "version": "2.5.10",
+  "version": "2.5.11",
   "branch": "main",
-  "notes": "• Un petit cercle qui tourne montre quand Vocalis prépare quelque chose (voix, traduction, réponse de l'assistant) : il n'a pas planté, il travaille.\n• La lecture continue si une traduction échoue ; Google prend le relais si Microsoft ne répond pas.\n• Badge de langue selon le passage lu."
+  "notes": "• La lecture passe toute seule à la voix du PC quand Internet est lent, puis revient à ta voix habituelle dès que la connexion redevient bonne.\n• Un petit cercle qui tourne montre quand Vocalis prépare quelque chose (voix, traduction, réponse de l'assistant) : il n'a pas planté, il travaille.\n• La lecture continue si une traduction échoue ; Google prend le relais si Microsoft ne répond pas."
 }
