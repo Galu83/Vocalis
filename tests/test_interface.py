@@ -66,3 +66,25 @@ def test_carte_de_reponse(qapp, tmp_path, mode):
 def test_icone(qapp):
     from vocalis.icon import make_icon
     assert not make_icon().isNull()
+
+
+def test_parametres_config_illisible_message_et_fichier_intact(write_config, qapp,
+                                                                monkeypatch):
+    path = write_config('[lecture]\nvoix_fr = "edge:fr-CH-ArianeNeural"\nvitesse = = 1\n')
+    before = path.read_bytes()
+    from vocalis import settings_ui
+    monkeypatch.setattr(settings_ui, "run_bg", lambda *a, **k: None)
+    monkeypatch.setattr(settings_ui, "input_devices", lambda: [])
+    shown = []
+    monkeypatch.setattr(settings_ui.QMessageBox, "critical",
+                        lambda parent, title, text: shown.append(text))
+    win = settings_ui.SettingsWindow()
+    try:
+        win.chk_live.setChecked(not win.chk_live.isChecked())
+        win._save()
+        assert path.read_bytes() == before
+        assert shown and "abîmé" in shown[0]
+    finally:
+        win._saved = True
+        win.close()
+        win.deleteLater()

@@ -1,5 +1,7 @@
 """config.toml : valeurs par défaut, lecture, écriture, réglages de l'utilisateur."""
-import tomllib
+import logging
+
+import pytest
 
 from vocalis import config
 
@@ -78,13 +80,37 @@ def test_update_settings_nouvelle_section(isolated):
     assert cfg["nouvelle"] == {"a": 1}
 
 
-def test_update_settings_fichier_illisible_ne_plante_pas(write_config):
-    path = write_config("[[[ pas du toml")
-    config.update_settings("lecture", {"vitesse": 2.0})
-    # Comportement actuel : un fichier illisible est remplacé par les valeurs par
-    # défaut + le réglage modifié (le contenu illisible est perdu).
-    cfg = tomllib.loads(path.read_text(encoding="utf-8"))
-    assert cfg["lecture"]["vitesse"] == 2.0
+BROKEN = '[lecture]\nvoix_fr = "edge:fr-CH-ArianeNeural"\nvitesse = = 1.2\n'
+
+
+def test_update_settings_fichier_illisible_jamais_ecrase(write_config, caplog):
+    path = write_config(BROKEN)
+    before = path.read_bytes()
+    with caplog.at_level(logging.ERROR, logger="vocalis.config"):
+        config.update_settings("lecture", {"vitesse": 2.0})
+    assert path.read_bytes() == before                 # réglage refusé, fichier intact
+    backups = list(path.parent.glob("config.toml.illisible-*"))
+    assert len(backups) == 1 and backups[0].read_bytes() == before
+    assert "config.toml illisible" in caplog.text
+    config.update_settings("interface", {"pastille_x": 3})
+    assert path.read_bytes() == before
+    assert len(list(path.parent.glob("config.toml.illisible-*"))) == 1   # une seule copie
+
+
+def test_save_config_refuse_un_fichier_illisible(write_config):
+    path = write_config(BROKEN)
+    with pytest.raises(config.ConfigIllisible) as err:
+        config.save_config(config.load_config())
+    assert path.read_text(encoding="utf-8") == BROKEN
+    assert "Vocalis ne l'a pas modifié" in str(err.value)
+    assert not (path.parent / "config.tmp").exists()
+
+
+def test_save_config_fichier_lisible_sans_copie(write_config):
+    path = write_config("﻿[lecture]\nvitesse = 1.5\n")
+    config.update_settings("lecture", {"vitesse": 1.6})
+    assert config.load_config()["lecture"]["vitesse"] == 1.6
+    assert not list(path.parent.glob("config.toml.illisible-*"))
 
 
 def test_fmt():

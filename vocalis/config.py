@@ -5,6 +5,7 @@ import copy
 import json
 import logging
 import os
+import time
 import tomllib
 from pathlib import Path
 
@@ -143,7 +144,34 @@ def _fmt(value) -> str:
     return json.dumps(str(value), ensure_ascii=False)
 
 
+class ConfigIllisible(RuntimeError):
+    """config.toml existe mais ne se lit pas : on ne l'écrase jamais."""
+
+
+def _check_readable(path: Path) -> None:
+    """Refuse d'écrire par-dessus un config.toml abîmé : sinon les valeurs par défaut
+    remplaceraient tous les réglages (narrateur, mode test…). Une copie est gardée."""
+    if not path.exists():
+        return
+    data = path.read_bytes()
+    try:
+        tomllib.loads(data.decode("utf-8-sig"))
+        return
+    except Exception as exc:
+        error = exc
+    backup = next((p for p in path.parent.glob(path.name + ".illisible-*")
+                   if p.read_bytes() == data), None)
+    if backup is None:
+        backup = path.with_name(f"{path.name}.illisible-{time.strftime('%Y%m%d-%H%M%S')}")
+        backup.write_bytes(data)
+    log.error("config.toml illisible (%s) : réglage non enregistré, fichier laissé tel "
+              "quel (copie : %s)", error, backup.name)
+    raise ConfigIllisible("Ton fichier de réglages (config.toml) est abîmé : Vocalis ne "
+                          f"l'a pas modifié.\nUne copie est gardée : {backup.name}")
+
+
 def save_config(cfg: dict, path: Path = CONFIG_PATH) -> None:
+    _check_readable(path)
     lines = [
         "# ============================================================",
         "#  Vocalis - configuration",
@@ -175,6 +203,8 @@ def update_settings(section: str, values: dict, path: Path = CONFIG_PATH) -> Non
         cfg = load_config(path)
         cfg.setdefault(section, {}).update(values)
         save_config(cfg, path)
+    except ConfigIllisible:
+        pass                                   # déjà journalisé, fichier intact
     except Exception:
         log.exception("Réglage non enregistré : %s", values)
 
