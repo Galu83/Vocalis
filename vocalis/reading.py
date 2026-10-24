@@ -180,6 +180,7 @@ class Player(QObject):
         self.target: str | None = None      # langue de la traduction lue (None = original)
         self.auto_voice = False             # écoute automatique : voix selon chaque morceau
         self.translating_now = False        # le passage en cours est-il une traduction ?
+        self.segment_src = ""               # langue d'origine du passage traduit en cours
         self.doc = doc
         self.lang = lang
         self.speed = speed
@@ -296,6 +297,7 @@ class Player(QObject):
             translated = self.translator.translate(text, target)
             speech = self.tts.synth(translated, target, speed)
             speech.translated = translated
+            speech.src = self._segment_lang(text, "")
             return speech
         if self.auto_voice:
             # Écoute « automatique » : chaque morceau avec la voix de sa langue.
@@ -358,6 +360,8 @@ class Player(QObject):
 
     def _play(self, stream, speech, a: int, b: int, gen: int) -> bool:
         translated = getattr(speech, "translated", None)
+        self.translating_now = translated is not None
+        self.segment_src = getattr(speech, "src", "") if translated is not None else ""
         tstarts: list[int] = []
         shown_t = -1
         if translated is not None:
@@ -376,7 +380,6 @@ class Player(QObject):
             starts = self._timeline(speech, a, b)
             if self.target and gen == self._gen:
                 self.translation.emit("")       # passage lu dans sa langue d'origine
-        self.translating_now = translated is not None
         audio = speech.audio
         sr = speech.sample_rate
         block = int(sr * 0.04)

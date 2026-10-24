@@ -1,5 +1,5 @@
 {
-  "version": "2.5.7",
+  "version": "2.5.8",
   "branch": "main",
-  "notes": "• Lecture : détection de la langue plus fiable (plus de néerlandais au milieu d'un texte français). La bulle de traduction n'apparaît que pour les passages vraiment traduits.\n• Sans Internet : si la voix en ligne manque, Vocalis prend une voix installée sur le PC (Piper ou Windows).\n• Captures d'écran : nouvelle option dans Paramètres > Général pour y faire apparaître Vocalis, et un clic dans l'outil de capture n'arrête plus la lecture."
+  "notes": "• Lecture : le badge de langue suit le passage lu. « FR » quand le texte est lu tel quel, « EN→FR » seulement pendant un passage traduit.\n• Détection de la langue plus fiable, bulle de traduction seulement si traduit, voix Windows sans Internet, option pour les captures d'écran."
 }

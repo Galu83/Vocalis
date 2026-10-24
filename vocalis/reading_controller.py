@@ -750,9 +750,12 @@ class ReadingController(QObject):
     def _show_badge(self) -> None:
         if not self.controls or not self.player:
             return
-        src = "" if self._source == "??" else self._source
-        if self.player.target:
-            self.controls.set_lang(src, self.player.target)
+        p = self.player
+        src = p.segment_src or ("" if self._source == "??" else self._source)
+        if p.target and p.translating_now and src != p.target:
+            self.controls.set_lang(src, p.target)        # « EN→FR » : passage traduit
+        elif p.target:
+            self.controls.set_lang(p.target)             # « FR » : lu dans sa langue
         else:
             self.controls.set_lang("auto" if self.player.lang == "multi" else self.player.lang)
 
@@ -782,7 +785,9 @@ class ReadingController(QObject):
 
     def _on_translation(self, text: str) -> None:
         if self.panel is None:
+            self._show_badge()
             return
+        self._show_badge()
         if not text:
             self.panel.hide()                   # passage déjà dans la langue d'écoute
             self._refresh()
