@@ -10,3 +10,6 @@ _maj/
 *.log.*
 journal_installation/
 /vocalis.ico
+/dictionnaire.json
+/actions.json
+*.tmp
