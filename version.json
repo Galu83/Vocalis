@@ -1,5 +1,5 @@
 {
   "version": "2.5.12",
   "branch": "main",
-  "notes": "• Paramètres : de vraies cases à cocher, bien visibles. Clique n'importe où sur la ligne.\n• « Rechercher une mise à jour maintenant » montre ce qu'il fait : un cercle tourne, puis un ✓ vert si Vocalis est à jour, ou une barre de téléchargement si une nouvelle version existe."
+  "notes": "• Paramètres : de vraies cases à cocher, bien visibles. Clique n'importe où sur la ligne.\n• « Rechercher une mise à jour maintenant » montre ce qu'il fait : un cercle tourne, puis un ✓ vert si Vocalis est à jour, ou une barre de téléchargement si une nouvelle version existe.\n• Si ton fichier de réglages est abîmé, Vocalis ne l'écrase plus : il garde une copie et te prévient."
 }
