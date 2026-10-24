@@ -115,9 +115,8 @@ class App(QObject):
         b.askContext.connect(self._on_ask_context)
         b.updateFound.connect(self._on_update_found)
         self._update_dialog = None
-        self._update_manual = False
         self._update_timer = QTimer(self)
-        self._update_timer.timeout.connect(lambda: self.check_updates(False))
+        self._update_timer.timeout.connect(self.check_updates)
         self._update_timer.start(24 * 3600 * 1000)          # une fois par jour
         b.dictState.connect(self._on_dict_state)
         b.loaded.connect(self._on_loaded)
@@ -242,7 +241,7 @@ class App(QObject):
         self.settings.saved.connect(self._settings_saved)
         self.settings.closedWithoutSave.connect(self._settings_closed)
         self.settings.captureChanged.connect(self._capture_mode)
-        self.settings.checkUpdates.connect(lambda: self.check_updates(True))
+        self.settings.updateReady.connect(self._update_downloaded)
         self.settings.restartRequested.connect(self._restart)
         if page:
             self.settings.show_page(page)
@@ -275,49 +274,57 @@ class App(QObject):
                 self._reading_active(True)
 
     # ------------------------------------------------------------------ mises à jour
-    def check_updates(self, manual: bool = False) -> None:
-        """Cherche une nouvelle version sur GitHub (en arrière-plan)."""
+    def check_updates(self) -> None:
+        """Cherche une nouvelle version sur GitHub (en arrière-plan). Le bouton
+        « Rechercher une mise à jour maintenant » a sa propre recherche (settings_ui)."""
         from . import updates
         from .hardware import offline
-        if offline() and not manual:
+        if offline():
             # Mode test hors ligne : pas de recherche automatique ; le bouton
             # « Rechercher une mise à jour maintenant » reste possible.
             log.info("Mode test hors ligne : pas de recherche automatique de mise à jour")
             return
-        if not manual and (not updates.installed_copy() or
-                           not self.cfg.get("general", {}).get("mises_a_jour_auto", True)):
+        if not updates.installed_copy() or \
+                not self.cfg.get("general", {}).get("mises_a_jour_auto", True):
             return
-        self._update_manual = manual
 
         def work():
             try:
                 info = updates.check()
             except Exception as exc:
                 log.info("Vérification des mises à jour impossible : %s", exc)
-                info = {"error": str(exc)} if manual else None
-                if not manual:
-                    return
+                return
             self.bridge.updateFound.emit(info)
 
         threading.Thread(target=work, daemon=True, name="mises-a-jour").start()
 
     def _on_update_found(self, info) -> None:
+        if info and self._update_dialog is None:
+            self._show_update(info)
+
+    def _update_downloaded(self, data: dict) -> None:
+        """Nouvelle version déjà téléchargée depuis les paramètres : fenêtre habituelle,
+        qui l'installe sans la télécharger une deuxième fois."""
+        old = self._update_dialog
+        if old is not None:
+            if not old.btn_go.isEnabled():        # installation déjà en cours
+                old.raise_()
+                return
+            old.close()
+        self._show_update(data["info"], data["archive"])
+
+    def _show_update(self, info: dict, archive: bytes | None = None) -> None:
         from . import updates
         from .ui_update import UpdateDialog
-        if not info or "error" in info:
-            if self._update_manual:
-                msg = ("Impossible de vérifier les mises à jour (Internet ?)." if info
-                       else f"Vocalis {__version__} est à jour.")
-                self.tray.showMessage("Vocalis", msg, QSystemTrayIcon.Information, 4000)
-            return
-        if self._update_dialog is not None:
-            return
         log.info("Nouvelle version disponible : %s", info.get("version"))
-        self._update_dialog = UpdateDialog(__version__, info, updates.install,
-                                           lambda _err: self._restart())
-        self._update_dialog.destroyed.connect(lambda: setattr(self, "_update_dialog", None))
-        self._update_dialog.setAttribute(Qt.WA_DeleteOnClose)
-        self._update_dialog.show_centered()
+        dlg = self._update_dialog = UpdateDialog(
+            __version__, info, lambda i, progress: updates.install(i, progress, archive),
+            lambda _err: self._restart())
+        # seulement si c'est toujours la fenêtre en cours (une ancienne se ferme peut-être)
+        dlg.destroyed.connect(lambda: self._update_dialog is dlg
+                              and setattr(self, "_update_dialog", None))
+        dlg.setAttribute(Qt.WA_DeleteOnClose)
+        dlg.show_centered()
 
     def _restart(self) -> None:
         QProcess.startDetached(sys.executable, ["-m", "vocalis", "--restart"], str(ROOT))
@@ -558,7 +565,7 @@ class App(QObject):
             return
         if not getattr(self, "_update_checked", False):
             self._update_checked = True
-            QTimer.singleShot(15000, lambda: self.check_updates(False))
+            QTimer.singleShot(15000, self.check_updates)
         r = self.cfg["raccourcis"]
         ready = self.asr is not None
         self.tray.setIcon(make_icon(ACCENT if ready else GREY))
