@@ -294,7 +294,17 @@ class Player(QObject):
                 # Morceau déjà dans la langue d'écoute : lu tel quel (texte d'origine
                 # surligné, pas de bulle de traduction).
                 return self.tts.synth(text, target, speed)
-            translated = self.translator.translate(text, target)
+            try:
+                translated = self.translator.translate(text, target)
+            except Exception as exc:
+                # Traduction impossible : on lit le passage tel quel plutôt que d'arrêter.
+                log.warning("Traduction impossible (%s) : passage lu en version originale",
+                            exc)
+                if not getattr(self, "_noted", False):
+                    self._noted = True
+                    self.error.emit("traduction indisponible, passage lu en version originale")
+                src = self._segment_lang(text, lang)
+                return self.tts.synth(text, src if self.tts.available(src) else lang, speed)
             speech = self.tts.synth(translated, target, speed)
             speech.translated = translated
             speech.src = self._segment_lang(text, "")

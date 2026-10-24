@@ -1,5 +1,5 @@
 {
-  "version": "2.5.8",
+  "version": "2.5.9",
   "branch": "main",
-  "notes": "• Lecture : le badge de langue suit le passage lu. « FR » quand le texte est lu tel quel, « EN→FR » seulement pendant un passage traduit.\n• Détection de la langue plus fiable, bulle de traduction seulement si traduit, voix Windows sans Internet, option pour les captures d'écran."
+  "notes": "• Lecture : une traduction impossible n'arrête plus la lecture ; le passage est lu en version originale.\n• Traduction en ligne : Google prend le relais quand le service de Microsoft ne répond pas.\n• Détection de langue : un passage français avec des mots anglais (noms de logiciels…) reste en français.\n• Le badge de langue suit le passage lu (« FR », ou « EN→FR » seulement s'il est traduit)."
 }

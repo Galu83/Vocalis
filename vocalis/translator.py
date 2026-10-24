@@ -86,6 +86,28 @@ class Translator:
             raise RuntimeError("traduction vide")
         return out
 
+    def _online(self, text: str, target: str) -> str:
+        """Traduction en ligne : Microsoft (Edge), puis Google si Microsoft ne répond pas."""
+        try:
+            return self._edge(text, target)
+        except Exception as exc:
+            if offline():
+                raise
+            log.warning("Traducteur Microsoft indisponible (%s) : essai avec Google", exc)
+        return self._google(text, target)
+
+    def _google(self, text: str, target: str) -> str:
+        code = {"pt": "pt-PT"}.get(target, target)
+        r = requests.get("https://translate.googleapis.com/translate_a/single",
+                         params={"client": "gtx", "sl": "auto", "tl": code, "dt": "t",
+                                 "q": text}, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        out = "".join(part[0] for part in (data[0] or []) if part and part[0])
+        if not out.strip():
+            raise RuntimeError("traduction vide")
+        return out.strip()
+
     def _edge(self, text: str, target: str) -> str:
         if offline():
             raise RuntimeError("pas d'Internet. Pour traduire sans Internet, installe "
@@ -127,7 +149,9 @@ class Translator:
         if self.local_available():
             try:
                 out = self._local(text, target)
-                if not self._is_language(out, target):
+                if _same(out, text):
+                    log.info("Texte déjà en %s : gardé tel quel", target)
+                elif not self._is_language(out, target):
                     log.warning("Traduction locale dans la mauvaise langue (%r…) : nouvel "
                                 "essai", out[:60])
                     out = self._local(text, target, strict=True)
@@ -141,8 +165,15 @@ class Translator:
                 log.warning("Traduction locale impossible (%s) : essai en ligne", exc)
                 out = ""
         if not out:
-            out = self._edge(text, target)
+            out = self._online(text, target)
             log.info("Traduction vers %s (en ligne) en %.1f s", target, time.monotonic() - t0)
         with self._lock:
             self._cache[key] = out
         return out
+
+
+def _same(a: str, b: str) -> bool:
+    """La « traduction » est-elle le texte lui-même (déjà dans la bonne langue) ?"""
+    import difflib
+    na, nb = " ".join(a.lower().split()), " ".join(b.lower().split())
+    return difflib.SequenceMatcher(None, na, nb).ratio() >= 0.9

@@ -93,8 +93,8 @@ def detect_any(text: str, default: str = "fr", prefer: str = "") -> str:
     best = max(sc.values()) if sc else 0
     if best / len(words) < 0.04:
         return "??"
-    if prefer and sc.get(prefer, 0) >= 0.75 * best:
-        return prefer
+    if prefer and (sc.get(prefer, 0) >= 0.75 * best or best < 2.0):
+        return prefer                  # langue d'écoute presque à égalité, ou trop peu d'indices
     return max(sc, key=sc.get)
 
 
