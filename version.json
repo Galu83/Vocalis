@@ -1,5 +1,5 @@
 {
-  "version": "2.5.5",
+  "version": "2.5.6",
   "branch": "main",
-  "notes": "• Lecture : la langue est reconnue à partir de l'endroit où tu lis, morceau par morceau. Un texte anglais sur une page en français est bien traduit, et en écoute automatique chaque passage prend la voix de sa langue.\n• Sans carte graphique : la traduction utilise le petit modèle de l'assistant, sans Internet."
+  "notes": "• Lecture : détection de la langue plus fiable (plus de néerlandais au milieu d'un texte français). La bulle de traduction n'apparaît que pour les passages vraiment traduits.\n• Sans Internet : si la voix en ligne manque, Vocalis prend une voix installée sur le PC (Piper ou Windows).\n• Captures d'écran : nouvelle option dans Paramètres > Général pour y faire apparaître Vocalis, et un clic dans l'outil de capture n'arrête plus la lecture."
 }

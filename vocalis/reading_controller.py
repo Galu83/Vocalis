@@ -232,6 +232,8 @@ class ReadingController(QObject):
             return
         if self._on_own_window(x, y):
             return                              # barre de lecture, pastille, fenêtres
+        if winutil.taking_screenshot():
+            return                              # clic dans l'outil de capture d'écran
         if double:
             if self._click_timer is not None:
                 self._click_timer.stop()
@@ -530,18 +532,18 @@ class ReadingController(QObject):
         return None
 
     @staticmethod
-    def _paragraph_languages(doc) -> set[str]:
+    def _paragraph_languages(doc, prefer: str = "") -> set[str]:
         """Langues des paragraphes lus (depuis le point de départ)."""
         langs, current, words = set(), None, []
         for w in doc.words[doc.start_word:doc.start_word + 1500]:
             if w.para != current and words:
                 if len(words) >= 6:
-                    langs.add(langdetect.detect_any(" ".join(words)))
+                    langs.add(langdetect.detect_any(" ".join(words), prefer=prefer))
                 words = []
             current = w.para
             words.append(w.text)
         if len(words) >= 6:
-            langs.add(langdetect.detect_any(" ".join(words)))
+            langs.add(langdetect.detect_any(" ".join(words), prefer=prefer))
         return langs
 
     def _needs_translation(self, doc, lang: str | None) -> bool:
@@ -550,7 +552,7 @@ class ReadingController(QObject):
             return False
         if lang != self._source:
             return True
-        return any(l not in ("??", lang) for l in self._paragraph_languages(doc))
+        return any(l not in ("??", lang) for l in self._paragraph_languages(doc, lang))
 
     @staticmethod
     def _detect_source(text: str) -> str:
@@ -563,7 +565,9 @@ class ReadingController(QObject):
                  if w.para == doc.words[doc.start_word].para] if doc.words else []
         if len(first) < 12:                   # paragraphe très court : un peu plus loin
             first = doc.words[doc.start_word:doc.start_word + 60]
-        self._source = self._detect_source(" ".join(w.text for w in first))
+        self._source = langdetect.detect_any(" ".join(w.text for w in first),
+                                             prefer=self.listen if self.listen != "auto"
+                                             else "")
         lang = self._pick_lang(doc.text)
         log.info("Lecture : démarrage en %s, %d mot(s), à partir du mot %d",
                  lang, len(doc.words), doc.start_word)
@@ -614,7 +618,8 @@ class ReadingController(QObject):
         self.current = idx
         if isinstance(self.view, ReaderWindow):
             # lecture traduite : on ne surligne pas un mot de l'original
-            self.view.set_word(-1 if self.player and self.player.target else idx)
+            self.view.set_word(-1 if self.player and self.player.target
+                               and self.player.translating_now else idx)
         else:
             self._refresh()
 
@@ -625,7 +630,7 @@ class ReadingController(QObject):
             return
         i = self.current
         para = player.doc.words[i].para if 0 <= i < len(player.doc.words) else 0
-        translating = bool(player.target)
+        translating = bool(player.target) and player.translating_now
         if isinstance(src, OcrSource):
             view.set_rects([] if translating else src.word_rects(i), src.para_rects(para))
             return
@@ -764,7 +769,7 @@ class ReadingController(QObject):
                 self.panel.anchor = self.controls
             self.panel.set_target(target)
             self.panel.set_text("Traduction en cours…")
-            self.panel.show()
+            # La bulle n'apparaît qu'avec le premier passage vraiment traduit.
             winutil.exclude_from_capture(self.panel)
         elif self.panel is not None:
             self._close_panel()
@@ -776,8 +781,16 @@ class ReadingController(QObject):
         self._refresh()
 
     def _on_translation(self, text: str) -> None:
-        if self.panel is not None:
-            self.panel.set_text(text)
+        if self.panel is None:
+            return
+        if not text:
+            self.panel.hide()                   # passage déjà dans la langue d'écoute
+            self._refresh()
+            return
+        self.panel.set_text(text)
+        if not self.panel.isVisible():
+            self.panel.show()
+            winutil.exclude_from_capture(self.panel)
 
     def _close_panel(self) -> None:
         panel, self.panel = self.panel, None

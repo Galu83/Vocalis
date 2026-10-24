@@ -179,6 +179,7 @@ class Player(QObject):
         self.translator = translator
         self.target: str | None = None      # langue de la traduction lue (None = original)
         self.auto_voice = False             # écoute automatique : voix selon chaque morceau
+        self.translating_now = False        # le passage en cours est-il une traduction ?
         self.doc = doc
         self.lang = lang
         self.speed = speed
@@ -281,7 +282,7 @@ class Player(QObject):
         from . import langdetect
         from .languages import LANGS
         if len(text.split()) >= 12:
-            code = langdetect.detect_any(text, default)
+            code = langdetect.detect_any(text, default, prefer=default)
             return code if code in LANGS else default
         return langdetect.detect(text, default, tuple(LANGS))
 
@@ -289,10 +290,9 @@ class Player(QObject):
         text = speak_text(self.doc, a, b)
         if target and self.translator is not None:
             if self._segment_lang(text, target) == target:
-                # Morceau déjà dans la langue d'écoute : lu tel quel, sans traduction.
-                speech = self.tts.synth(text, target, speed)
-                speech.translated = text
-                return speech
+                # Morceau déjà dans la langue d'écoute : lu tel quel (texte d'origine
+                # surligné, pas de bulle de traduction).
+                return self.tts.synth(text, target, speed)
             translated = self.translator.translate(text, target)
             speech = self.tts.synth(translated, target, speed)
             speech.translated = translated
@@ -374,6 +374,9 @@ class Player(QObject):
                 self.translation.emit(translated)
         else:
             starts = self._timeline(speech, a, b)
+            if self.target and gen == self._gen:
+                self.translation.emit("")       # passage lu dans sa langue d'origine
+        self.translating_now = translated is not None
         audio = speech.audio
         sr = speech.sample_rate
         block = int(sr * 0.04)

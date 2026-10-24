@@ -88,7 +88,8 @@ class Translator:
 
     def _edge(self, text: str, target: str) -> str:
         if offline():
-            raise RuntimeError("pas d'Internet (mode test hors ligne)")
+            raise RuntimeError("pas d'Internet. Pour traduire sans Internet, installe "
+                               "l'assistant (Paramètres > État > Réparer)")
         t, token = self._edge_token
         if not token or time.monotonic() - t > 8 * 60:
             r = requests.get("https://edge.microsoft.com/translate/auth", timeout=8)

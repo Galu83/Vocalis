@@ -245,6 +245,29 @@ class Tts:
             sp.word_bounds = None
         return sp
 
+    def _offline_voice(self, lang: str):
+        """Voix de secours sans Internet : Piper si elle est installée, sinon une voix
+        intégrée à Windows dans la langue (toujours présente pour la langue du système)."""
+        cache = self.__dict__.setdefault("_offline_cache", {})
+        if lang in cache:
+            return cache[lang]
+        found = None
+        base = lang if lang in V.DEFAULT else "fr"
+        piper = V.from_config(V.DEFAULT[base], base)
+        if piper.engine == "piper" and V.installed(piper):
+            found = piper
+        else:
+            for cand in ([lang] if lang in V.DEFAULT else []) + ["fr", "en"]:
+                try:
+                    voices = V.windows_voices(cand)
+                except Exception:
+                    voices = []
+                if voices:
+                    found = voices[0]
+                    break
+        cache[lang] = found
+        return found
+
     def _synth_raw(self, text: str, lang: str, speed: float) -> Speech:
         v = self.voice_for(lang)
         if v.engine == "edge":
@@ -258,13 +281,14 @@ class Tts:
             except Exception as exc:
                 if "il y a peu" not in str(exc):
                     self._edge_down_until = time.monotonic() + 60
-                # Pas d'Internet (ou service indisponible) : voix Piper de secours.
-                log.warning("Voix en ligne %s indisponible (%s) : voix Piper utilisée",
-                            v.name, exc)
-                base = lang if lang in V.DEFAULT else "fr"
-                fallback = V.from_config(V.DEFAULT[base], base)
-                if fallback.engine != "piper" or not V.installed(fallback):
+                # Pas d'Internet (ou service indisponible) : voix installée sur le PC.
+                fallback = self._offline_voice(lang)
+                if fallback is None:
                     raise
+                log.warning("Voix en ligne %s indisponible (%s) : voix %s utilisée",
+                            v.name, exc, fallback.name)
+                if fallback.engine == "windows":
+                    return self._synth_windows(fallback, text, speed)
                 return self._synth_piper(fallback, text, speed)
         if v.engine == "windows":
             return self._synth_windows(v, text, speed)

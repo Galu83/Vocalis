@@ -59,6 +59,7 @@ class App(QObject):
         super().__init__()
         self.qapp = qapp
         self.cfg = load_config()
+        winutil.ALLOW_CAPTURE = bool(self.cfg.get("general", {}).get("captures_visibles", False))
         self.bridge = Bridge()
         self.asr = None
         self.cleaner = Cleaner(self.cfg)
@@ -262,11 +263,10 @@ class App(QObject):
         """Cherche une nouvelle version sur GitHub (en arrière-plan)."""
         from . import updates
         from .hardware import offline
-        if offline():
-            log.info("Mode test hors ligne : pas de recherche de mise à jour")
-            if manual:
-                self.tray.showMessage("Vocalis", "Mode test hors ligne : pas de recherche de "
-                                      "mise à jour.", QSystemTrayIcon.Information, 3000)
+        if offline() and not manual:
+            # Mode test hors ligne : pas de recherche automatique ; le bouton
+            # « Rechercher une mise à jour maintenant » reste possible.
+            log.info("Mode test hors ligne : pas de recherche automatique de mise à jour")
             return
         if not manual and (not updates.installed_copy() or
                            not self.cfg.get("general", {}).get("mises_a_jour_auto", True)):

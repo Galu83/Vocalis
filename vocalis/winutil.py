@@ -78,6 +78,12 @@ if IS_WINDOWS:
     kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
     kernel32.CreateMutexW.restype = wintypes.HANDLE
     kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD,
+                                                    wintypes.LPWSTR,
+                                                    ctypes.POINTER(wintypes.DWORD)]
+    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
     kernel32.CloseHandle.restype = wintypes.BOOL
 
 INPUT_KEYBOARD = 1
@@ -227,6 +233,37 @@ def foreground_window() -> int:
     if not IS_WINDOWS:
         return 0
     return int(user32.GetForegroundWindow() or 0)
+
+
+SCREENSHOT_TOOLS = {"screenclippinghost.exe", "snippingtool.exe", "sharex.exe",
+                    "greenshot.exe", "lightshot.exe", "snagit32.exe", "snagiteditor.exe",
+                    "flameshot.exe", "picpick.exe"}
+
+
+def foreground_process() -> str:
+    """Nom du programme au premier plan (ex. « screenclippinghost.exe »), en minuscules."""
+    if not IS_WINDOWS:
+        return ""
+    try:
+        pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), ctypes.byref(pid))
+        h = kernel32.OpenProcess(0x1000, False, pid.value)   # QUERY_LIMITED_INFORMATION
+        if not h:
+            return ""
+        try:
+            buf = ctypes.create_unicode_buffer(520)
+            size = wintypes.DWORD(len(buf))
+            if kernel32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)):
+                return buf.value.rsplit("\\", 1)[-1].lower()
+        finally:
+            kernel32.CloseHandle(h)
+    except Exception:
+        pass
+    return ""
+
+
+def taking_screenshot() -> bool:
+    return foreground_process() in SCREENSHOT_TOOLS
 
 
 # ---------------------------------------------------------------- presse-papiers
@@ -384,10 +421,13 @@ def set_autostart(enabled: bool) -> bool:
 WDA_EXCLUDEFROMCAPTURE = 0x11
 
 
+ALLOW_CAPTURE = False      # réglage « Montrer Vocalis sur les captures d'écran »
+
+
 def exclude_from_capture(widget) -> None:
     """Rend une fenêtre de l'outil invisible aux captures d'écran (Windows 10 2004+) :
     le cadre jaune ne perturbe ni l'OCR ni le suivi du défilement."""
-    if not IS_WINDOWS:
+    if not IS_WINDOWS or ALLOW_CAPTURE:
         return
     try:
         user32.SetWindowDisplayAffinity(ctypes.c_void_p(int(widget.winId())),

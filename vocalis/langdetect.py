@@ -52,7 +52,7 @@ PATTERNS = {
     "de": ([r"ß", r"\b\w+ung\b", r"\b\w+lich\b", r"sch"], 0.5),
     "es": ([r"ñ", r"ción\b", r"¿", r"¡"], 0.7),
     "pl": ([r"ł", r"ą", r"ę", r"ś", r"ż", r"ź", r"ć", r"ń"], 0.7),
-    "nl": ([r"ij", r"\bvan\b", r"oe", r"aa"], 0.3),
+    "nl": ([r"ij", r"\bvan\b", r"\bhet\b", r"aa"], 0.3),
 }
 
 
@@ -64,7 +64,8 @@ def scores(text: str, allowed) -> dict[str, float]:
         ws = WORDS.get(code)
         if ws is None:
             continue
-        v = float(sum(1 for w in words if w in ws))
+        # Un mot commun à plusieurs langues (« de », « en », « in »…) compte moins.
+        v = float(sum(1.0 / _SHARED.get(w, 1) for w in words if w in ws))
         pats, weight = PATTERNS.get(code, ((), 0))
         v += sum(len(re.findall(p, t)) for p in pats) * weight
         out[code] = v
@@ -82,15 +83,18 @@ def detect(text: str, default: str = "fr", allowed: tuple[str, ...] = ("fr", "pt
     return winners[0]
 
 
-def detect_any(text: str, default: str = "fr") -> str:
-    """Langue du texte parmi toutes celles connues, ou « ?? » si aucune ne ressort."""
+def detect_any(text: str, default: str = "fr", prefer: str = "") -> str:
+    """Langue du texte parmi toutes celles connues, ou « ?? » si aucune ne ressort.
+    `prefer` : langue gardée si elle est presque à égalité (la langue d'écoute)."""
     words = re.findall(r"[\w'’]+", text.lower())
     if len(words) < 12:
-        return detect(text, default, tuple(WORDS))
+        return detect(text, prefer or default, tuple(WORDS))
     sc = scores(text, tuple(WORDS))
     best = max(sc.values()) if sc else 0
     if best / len(words) < 0.04:
         return "??"
+    if prefer and sc.get(prefer, 0) >= 0.75 * best:
+        return prefer
     return max(sc, key=sc.get)
 
 
@@ -98,3 +102,14 @@ def is_foreign(text: str, known: tuple[str, ...] = ("fr", "pt", "en", "de")) -> 
     """Texte dans une langue autre que celles de `known`."""
     lang = detect_any(text)
     return lang == "??" or lang not in known
+
+
+def _shared_counts() -> dict:
+    count: dict = {}
+    for ws in WORDS.values():
+        for w in ws:
+            count[w] = count.get(w, 0) + 1
+    return count
+
+
+_SHARED = _shared_counts()

@@ -1394,6 +1394,16 @@ class SettingsWindow(QWidget):
         c.addLayout(row(btn_upd))
         lay.addWidget(frame)
 
+        frame, c = card("Captures d'écran")
+        self.chk_capture = QCheckBox("Montrer les fenêtres de Vocalis sur les captures d'écran")
+        c.addWidget(self.chk_capture)
+        c.addWidget(hint("Par défaut, la barre de lecture, le cadre et les bulles n'apparaissent "
+                         "pas sur les captures : Vocalis lit lui-même l'écran (lecture d'images, "
+                         "suivi du défilement) et ne doit pas se lire lui-même. Coche cette case "
+                         "pour faire des captures ; la lecture d'images peut alors être un peu "
+                         "moins fiable."))
+        lay.addWidget(frame)
+
         frame, c = card("Dossiers et journal")
         b1 = QPushButton("Ouvrir le dossier de Vocalis")
         b1.clicked.connect(lambda: self._open(ROOT))
@@ -1447,6 +1457,7 @@ class SettingsWindow(QWidget):
         self.spn_font.setValue(int(lec["taille_police_fenetre"]))
         self.chk_autostart.setChecked(winutil.is_autostart())
         self.chk_updates.setChecked(bool(cfg.get("general", {}).get("mises_a_jour_auto", True)))
+        self.chk_capture.setChecked(bool(cfg.get("general", {}).get("captures_visibles", False)))
 
     def _collect(self) -> dict:
         cfg = copy.deepcopy(self.cfg)
@@ -1466,6 +1477,7 @@ class SettingsWindow(QWidget):
         lec["clic_arrete"] = self.chk_click_stop.isChecked()
         lec["pause_medias"] = self.chk_pause_media.isChecked()
         cfg.setdefault("general", {})["mises_a_jour_auto"] = self.chk_updates.isChecked()
+        cfg["general"]["captures_visibles"] = self.chk_capture.isChecked()
         n["actif"] = self.chk_clean.isChecked()
         n["modele"] = combo_get(self.cmb_clean) or DEFAULTS["nettoyage"]["modele"]
         n["delai_max_secondes"] = self.spn_timeout.value()

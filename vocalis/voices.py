@@ -174,11 +174,15 @@ def windows_voices(lang: str) -> list[Voice]:
                 continue
             name = info.display_name.replace("Microsoft ", "").split(" - ")[0].strip()
             gender = "femme" if info.gender == VoiceGender.FEMALE else "homme"
-            out.append(Voice(f"windows:{info.id}", lang, name, gender,
-                             ACCENTS.get(tag, tag), "windows"))
+            out.append((tag.lower(), Voice(f"windows:{info.id}", lang, name, gender,
+                                           ACCENTS.get(tag, tag), "windows")))
     except Exception:
         log.exception("Voix Windows illisibles")
-    return out
+    # Variante préférée d'abord (portugais du Portugal, français de France…)
+    preferred = {"pt": "pt-pt", "fr": "fr-fr", "en": "en-us", "de": "de-de", "es": "es-es"}
+    pref = preferred.get(lang, "")
+    out.sort(key=lambda tv: 0 if tv[0] == pref else 1)
+    return [v for _, v in out]
 
 
 # --------------------------------------------------------------------------- choix
