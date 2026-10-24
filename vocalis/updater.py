@@ -107,6 +107,8 @@ def run_with_window() -> bool:
                                    QVBoxLayout, QWidget)
 
     app = QApplication.instance() or QApplication(sys.argv)
+    from .winutil import qt_in_french
+    qt_in_french(app)
     _stop_running_instance()
 
     win = QWidget(None, Qt.Window | Qt.WindowStaysOnTopHint)

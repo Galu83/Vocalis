@@ -29,6 +29,30 @@ def test_fenetre_parametres(settings_window, tmp_path):
     assert (tmp_path / "parametres.png").stat().st_size > 0
 
 
+def test_question_enregistrer_en_francais_et_lisible(settings_window, qapp, monkeypatch):
+    """Fermer avec des changements non enregistrés : la question est en français, avec
+    un fond clair (le texte sombre des Paramètres était invisible sur fond sombre)."""
+    from PySide6.QtWidgets import QMessageBox
+
+    from vocalis import settings_ui
+    from vocalis.winutil import qt_in_french
+    qt_in_french(qapp)
+    assert "QMessageBox { background: #F4F4F6; }" in settings_ui.STYLE
+    seen = []
+
+    def fake_exec(box):
+        seen.append(sorted(b.text() for b in box.buttons()))
+        return QMessageBox.Cancel
+
+    monkeypatch.setattr(QMessageBox, "exec", fake_exec)
+    win = settings_window
+    monkeypatch.setattr(win, "_collect", lambda: {"changé": True})
+    win.show()
+    win.close()
+    assert seen == [["Annuler", "Enregistrer", "Ne pas enregistrer"]]
+    assert win.isVisible()                 # « Annuler » garde la fenêtre ouverte
+
+
 def test_parametres_reprend_le_narrateur_choisi(write_config, qapp, monkeypatch):
     write_config('[lecture]\nvoix_fr = "edge:fr-CH-ArianeNeural"\n'
                  'voix_pt = "edge:pt-PT-RaquelNeural"\n')

@@ -404,6 +404,15 @@ def create_shortcut(lnk, arguments: str = "-m vocalis") -> bool:
         return False
 
 
+def qt_in_french(app) -> None:
+    """Boutons standard des fenêtres de Qt (Oui, Non, Enregistrer, Annuler…) en
+    français : sans traduction chargée, Qt les affiche en anglais."""
+    from PySide6.QtCore import QLibraryInfo, QTranslator
+    tr = QTranslator(app)                   # rattaché à l'application : reste en vie
+    if tr.load("qtbase_fr", QLibraryInfo.path(QLibraryInfo.TranslationsPath)):
+        app.installTranslator(tr)
+
+
 def set_autostart(enabled: bool) -> bool:
     lnk = startup_shortcut()
     if not enabled:

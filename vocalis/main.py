@@ -933,6 +933,8 @@ def main() -> None:
     qapp = QApplication.instance() or QApplication(sys.argv)
     qapp.setQuitOnLastWindowClosed(False)
     qapp.setApplicationName("Vocalis")
+    from .winutil import qt_in_french
+    qt_in_french(qapp)
     qapp.setFont(QFont("Segoe UI", 10))
     qapp.setWindowIcon(make_icon())
 

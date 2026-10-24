@@ -34,6 +34,7 @@ ACCENT = "#E5484D"
 STYLE = f"""
 QWidget#settings {{ background: #F4F4F6; }}
 QWidget {{ font-family: 'Segoe UI'; font-size: 10pt; color: #1D1D1F; }}
+QMessageBox {{ background: #F4F4F6; }}
 QListWidget#nav {{ background: #ECECEF; border: none; padding: 10px 6px; outline: 0; }}
 QListWidget#nav::item {{ padding: 9px 12px; border-radius: 8px; margin: 1px 0; }}
 QListWidget#nav::item:selected {{ background: white; color: {ACCENT}; font-weight: 600; }}
@@ -1665,9 +1666,12 @@ class SettingsWindow(QWidget):
         self._stop_mic()
         if not self._saved and (self._collect() != self.original
                                 or self._dictionary_changed()):
-            answer = QMessageBox.question(
-                self, "Vocalis", "Enregistrer les modifications ?",
-                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel)
+            box = QMessageBox(QMessageBox.Question, "Vocalis",
+                              "Enregistrer les modifications ?",
+                              QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+                              self)
+            box.button(QMessageBox.Discard).setText("Ne pas enregistrer")
+            answer = box.exec()
             if answer == QMessageBox.Cancel:
                 e.ignore()
                 return
@@ -1686,6 +1690,8 @@ def run_standalone() -> None:
 
     app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName("Vocalis")
+    from .winutil import qt_in_french
+    qt_in_french(app)
     win = SettingsWindow()
 
     def after_save():
