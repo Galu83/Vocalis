@@ -13,3 +13,4 @@ journal_installation/
 /dictionnaire.json
 /actions.json
 *.tmp
+.pytest_cache/

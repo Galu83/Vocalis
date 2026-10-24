@@ -44,6 +44,7 @@ Dépôt public : `Galu83/Vocalis`, branche `main`.
 | `vocalis/updates.py`, `updater.py`, `ui_update.py` | Mises à jour depuis GitHub ; bibliothèques à jour au lancement |
 | `vocalis/scripts/*.ps1` | Installation, OCR Windows, désinstallation |
 | `installer/` | Installateur NSIS → `dist/Vocalis-Setup.exe` |
+| `tests/` | Tests automatiques (pytest), non livrés aux utilisateurs |
 
 Fichiers de l'utilisateur (jamais dans le dépôt, jamais écrasés par une mise à jour) :
 `config.toml`, `dictionnaire.json`, `actions.json`, `modeles/`, `voix/`, `.venv/`.
@@ -56,8 +57,11 @@ Installation : `%LOCALAPPDATA%\Programs\Vocalis`.
    C'est ce texte qui s'affiche dans la fenêtre de mise à jour.
 3. `sh installer/build.sh` (nécessite `makensis`, paquet `nsis`) pour régénérer
    `dist/Vocalis-Setup.exe`.
-4. `python3 -m pyflakes vocalis/*.py` doit être propre.
+4. `python -m flake8 --select=F vocalis tests` (pyflakes) doit être propre et
+   `python -m pytest` doit passer (voir « Tests automatiques »).
 5. Commit sur `main` puis push. **Pas de tags** (le proxy les refuse ; inutiles).
+   GitHub relance ces vérifications sur Windows à chaque push
+   (`.github/workflows/tests.yml`).
 
 La mise à jour lit le dernier commit via l'API GitHub (`commits/main`), puis
 `version.json` et l'archive **de ce commit précis** : jamais de décalage de cache.
@@ -77,8 +81,30 @@ une nouvelle bibliothèque dans `requirements.txt` s'installe au redémarrage su
   sauf si `general.captures_visibles = true`.
 - Textes de l'interface : français, tutoiement, phrases courtes ; jamais le mot « prompt »
   hors du mode avancé des Actions.
-- Pas de Windows ici : tester la logique en Python, et l'interface avec
-  `QT_QPA_PLATFORM=offscreen` (capture `widget.grab().save(...)`) avant de livrer.
+- Tester la logique en Python, et l'interface avec `QT_QPA_PLATFORM=offscreen`
+  (capture `widget.grab().save(...)`) avant de livrer.
+
+## Tests automatiques
+
+- **Avant tout rapport à Flavio ou toute publication** :
+  `python -m flake8 --select=F vocalis tests` puis `python -m pytest` (quelques secondes).
+  Tout doit passer. (`flake8 --select=F` = les vérifications de pyflakes, en respectant
+  les `# noqa` ; `pyflakes` seul signale deux faux positifs `app` dans `main.py` et
+  `setup_models.py`.)
+- **Tout nouveau comportement ajoute ou adapte un test** dans `tests/` ; un bug corrigé
+  reçoit un test qui l'aurait détecté.
+- Tests dans `tests/` à la racine, **jamais dans `vocalis/`** (remplacé par les mises à
+  jour). pytest, pyflakes et flake8 sont dans `requirements-dev.txt`, **pas** dans
+  `requirements.txt` (installé chez les utilisateurs).
+- `tests/conftest.py` isole chaque test : config, dictionnaire, actions et voix dans un
+  dossier temporaire (jamais la vraie configuration de Flavio), réseau coupé, pas de
+  carte graphique. Ollama et GitHub sont simulés (`monkeypatch`) quand un test en a besoin.
+- Sur le PC de Flavio, sans rien modifier dans son installation : installer les outils
+  à part (`pip install --target <dossier> -r requirements-dev.txt`), puis lancer
+  `%LOCALAPPDATA%\Programs\Vocalis\.venv\Scripts\python.exe -m pytest` avec
+  `PYTHONPATH=<dossier>`.
+- Non couvert : micro, haut-parleur, raccourcis clavier, UI Automation, OCR, vraies voix,
+  vrai Ollama. Pour ça, Flavio teste à la main.
 
 ## Décisions déjà prises (ne pas revenir dessus sans demander)
 

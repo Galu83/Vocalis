@@ -1,0 +1,4 @@
+# Outils pour vérifier Vocalis (jamais installés chez les utilisateurs)
+pytest>=8
+pyflakes>=3
+flake8>=7          # « flake8 --select=F » = pyflakes qui respecte les « # noqa »
