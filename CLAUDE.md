@@ -12,6 +12,10 @@ Dépôt public : `Galu83/Vocalis`, branche `main`.
   sans jargon. Il dicte souvent ses messages : des mots peuvent être mal reconnus.
 - Veut un logiciel « normal » et grand public : installateur, mises à jour par fenêtre,
   aucune manipulation technique. Tout réglage doit être faisable dans l'interface.
+- **Il ne veut jamais intervenir dans les sessions de travail.** Une session lancée par
+  une autre ne pose aucune question à Flavio (ni bouton, ni question en fin de rapport) :
+  elle envoie ses décisions à trancher à la session qui l'a lancée, qui tranche ou lui
+  transmet. Flavio ne décide que du produit (ce qu'il veut, ce qu'il entend, ce qu'il voit).
 - Il teste vite et envoie des captures d'écran : lire son journal (`vocalis.log`) avant
   de conclure.
 - Son PC : Windows 11, RTX 5070 (12 Go), clavier AZERTY, **Smart App Control activé**.
