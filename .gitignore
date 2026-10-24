@@ -13,3 +13,5 @@ journal_installation/
 /dictionnaire.json
 /actions.json
 *.tmp
+.claude/settings.local.json
+.claude/worktrees/

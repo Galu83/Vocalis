@@ -77,8 +77,10 @@ une nouvelle bibliothèque dans `requirements.txt` s'installe au redémarrage su
   sauf si `general.captures_visibles = true`.
 - Textes de l'interface : français, tutoiement, phrases courtes ; jamais le mot « prompt »
   hors du mode avancé des Actions.
-- Pas de Windows ici : tester la logique en Python, et l'interface avec
-  `QT_QPA_PLATFORM=offscreen` (capture `widget.grab().save(...)`) avant de livrer.
+- Session locale (Claude Code sur le PC de Flavio, dossier OneDrive › Alves Flavio › Projet Développement › Vocalis) :
+  on peut lancer Vocalis et lire `vocalis.log` directement. Session cloud (pas de Windows) :
+  tester la logique en Python, et l'interface avec `QT_QPA_PLATFORM=offscreen`
+  (capture `widget.grab().save(...)`) avant de livrer.
 
 ## Décisions déjà prises (ne pas revenir dessus sans demander)
 
@@ -90,6 +92,11 @@ une nouvelle bibliothèque dans `requirements.txt` s'installe au redémarrage su
 - Clic = arrêter la lecture, double-clic = reprendre au mot (option).
 - La fenêtre de dictée et la carte de réponse s'ouvrent près de l'endroit où l'on écrit.
 - Raccourcis : Ctrl+Alt+Maj+K dictée, J lecture, L Demander, Échap arrêter.
+- Licences : uniquement MIT, Apache 2.0 ou CC-BY (avec crédit à l'auteur), car Vocalis doit
+  être utilisable en entreprise. Exclus (non commerciaux) : Qwen 2.5 3B (*Qwen Research*),
+  XTTS, F5-TTS, Fish Speech. Vérifier la licence de tout nouveau modèle avant de l'ajouter.
+- Services Microsoft gratuits non garantis : le traducteur Edge a renvoyé une erreur 404
+  (oct. 2026, Google prend le relais) ; les voix Edge pourraient disparaître aussi.
 
 ## Prochaines étapes prévues
 
@@ -98,6 +105,7 @@ une nouvelle bibliothèque dans `requirements.txt` s'installe au redémarrage su
 2. Essayer `qwen3.5:9b` à la place de `qwen2.5:7b` avec carte graphique.
 3. Ajouter le crédit NVIDIA pour Parakeet (CC-BY 4.0).
 4. Plus tard : Voxtral Realtime (dictée en continu), voix locale de qualité
-   (Kokoro, Chatterbox) en secours des voix Edge.
+   en secours des voix Edge : Kokoro-82M (Apache 2.0, processeur, mais vérifier
+   pt-PT et allemand) ou Chatterbox Multilingual v3 (MIT, 25 langues, plutôt avec GPU).
 5. Remettre la configuration normale de Flavio quand il a fini ses tests
    (supprimer `[test]`, `moteur = "whisper"`).
