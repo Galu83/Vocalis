@@ -84,6 +84,12 @@ une nouvelle bibliothèque dans `requirements.txt` s'installe au redémarrage su
 
 ## Décisions déjà prises (ne pas revenir dessus sans demander)
 
+- **Ordre de priorité de Flavio (oct. 2026), pour chaque fonction** : 1) sur le PC, sans
+  Internet, sans carte graphique ; 2) en ligne, sans carte graphique ; 3) en dernier
+  recours, sur le PC avec carte graphique. Sans renoncer à la qualité : on ne descend au
+  niveau suivant que si la solution du niveau au-dessus n'est pas assez bonne. Le modèle
+  sans carte graphique est donc le modèle **principal**, pas un secours.
+
 - Pas de mode en ligne à clé (Groq…) : jugé pas assez simple. Sans GPU : petit modèle local.
 - Traduction en dictée : pastilles de langue dans la fenêtre de dictée ; avec une
   sélection, parler la **remplace** (pas d'ajout) ; ✕ annule tout.
@@ -107,5 +113,8 @@ une nouvelle bibliothèque dans `requirements.txt` s'installe au redémarrage su
 4. Plus tard : Voxtral Realtime (dictée en continu), voix locale de qualité
    en secours des voix Edge : Kokoro-82M (Apache 2.0, processeur, mais vérifier
    pt-PT et allemand) ou Chatterbox Multilingual v3 (MIT, 25 langues, plutôt avec GPU).
-5. Remettre la configuration normale de Flavio quand il a fini ses tests
+5. Selon l'ordre de priorité : Parakeet (processeur) comme moteur de dictée par défaut,
+   Whisper en option ; correction de la dictée aussi sans carte graphique si le modèle
+   retenu à l'étape 1 est assez rapide ; voix locale de secours qui tourne sur le processeur.
+6. Remettre la configuration normale de Flavio quand il a fini ses tests
    (supprimer `[test]`, `moteur = "whisper"`).
