@@ -205,6 +205,22 @@ class App(QObject):
             "Paramètres > Dictionnaire pour le modifier.",
             QSystemTrayIcon.Information, 5000)
 
+    def _set_test(self, key: str, value: bool) -> None:
+        """Interrupteurs du mode test : on enregistre, puis Vocalis redémarre (les
+        moteurs dépendent de la carte graphique et d'Internet)."""
+        from .config import update_settings
+        update_settings("test", {key: value})
+        on = not value
+        msg = (("Carte graphique activée" if on else "Carte graphique désactivée")
+               if key == "sans_carte_graphique" else
+               ("Internet activé" if on else "Internet coupé"))
+        log.info("Mode test : %s", msg)
+        if self.panel is not None:
+            self.panel.close()
+        self.tray.showMessage("Vocalis", f"Mode test : {msg.lower()} — redémarrage…",
+                              QSystemTrayIcon.Information, 2000)
+        QTimer.singleShot(1200, self._restart)
+
     def _on_learn_answer(self, old: str, new: str, yes: bool) -> None:
         from . import dictionary
         log.info("Retenir « %s » -> « %s » : %s", old, new, "oui" if yes else "non")
@@ -421,9 +437,14 @@ class App(QObject):
             "engines": [(k, short[k]) for k in ENGINES],
             "click_stop": bool(self.cfg["lecture"].get("clic_arrete", True)),
         }
+        if "test" in self.cfg:
+            from .hardware import offline, simulate_no_gpu
+            state["test"] = {"gpu": not simulate_no_gpu(), "internet": not offline()}
         actions = {
             "engine": self.switch_engine,
             "click_stop": self._toggle_click_mode,
+            "test_gpu": lambda on: self._set_test("sans_carte_graphique", not on),
+            "test_internet": lambda on: self._set_test("hors_ligne", not on),
             "settings": lambda: self.open_settings(),
             "dictionary": lambda: self.open_settings("dictionnaire"),
             "log": lambda: os.startfile(str(LOG_PATH)),

@@ -133,8 +133,10 @@ class TrayPanel(QWidget):
         t = QLabel(state.get("title", "Vocalis"))
         t.setObjectName("title")
         dot = "#3DDC84" if state.get("ready") else "#FFB020"
-        s = QLabel(f"<span style='color:{dot}'>●</span>&nbsp; {state.get('status', '')}")
+        status = state.get("status", "").replace("\n", "<br>")
+        s = QLabel(f"<span style='color:{dot}'>●</span>&nbsp; {status}")
         s.setObjectName("status")
+        s.setWordWrap(True)
         titles.addWidget(t)
         titles.addWidget(s)
         head.addLayout(titles, 1)
@@ -164,6 +166,13 @@ class TrayPanel(QWidget):
         lay.addWidget(self._section("OPTIONS"))
         lay.addLayout(self._switch_row("Clic : arrêter la lecture\nDouble-clic : reprendre au mot",
                                        state.get("click_stop", True), "click_stop"))
+        test = state.get("test")
+        if test is not None:
+            # Seulement avec une section [test] dans config.toml (essais personnels).
+            lay.addSpacing(6)
+            lay.addWidget(self._section("MODE TEST"))
+            lay.addLayout(self._switch_row("Carte graphique", test["gpu"], "test_gpu"))
+            lay.addLayout(self._switch_row("Internet", test["internet"], "test_internet"))
         # pied
         line = QFrame()
         line.setFixedHeight(1)
