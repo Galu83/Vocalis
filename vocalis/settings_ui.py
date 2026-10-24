@@ -12,7 +12,7 @@ import time
 import requests
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QFrame,
+from PySide6.QtWidgets import (QColorDialog, QComboBox, QFrame,
                                QGridLayout, QHBoxLayout, QLabel, QListWidget,
                                QListWidgetItem, QMessageBox, QPlainTextEdit, QProgressBar,
                                QPushButton, QScrollArea, QSlider, QSpinBox, QStackedWidget,
@@ -25,6 +25,7 @@ from .languages import ALL as ALL_LANGS, active as active_languages, name as lan
 from .config import (DEFAULTS, LOG_PATH, MODELS_DIR, ROOT, key_label, load_config,
                      save_config)
 from .icon import make_icon
+from .ui_check import CheckBox, style as check_style
 
 log = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ QProgressBar {{ border: 1px solid #CFCFD4; border-radius: 5px; background: #F2F2
                 height: 10px; text-align: center; font-size: 8pt; }}
 QProgressBar::chunk {{ background: {ACCENT}; border-radius: 4px; }}
 QScrollArea {{ border: none; background: transparent; }}
-"""
+""" + check_style(ACCENT, "#D33C41")
 
 WHISPER_MODELS = [
     ("large-v3-turbo", "Large v3 Turbo — recommandé (rapide et précis)"),
@@ -120,6 +121,16 @@ def run_bg(fn, on_done=None, on_progress=None) -> None:
         relay.done.emit(res)
 
     threading.Thread(target=work, daemon=True, name="parametres").start()
+
+
+def _network_error(exc: Exception, fallback: str) -> str:
+    """Message court pour une erreur réseau (mises à jour)."""
+    import urllib.error
+    if isinstance(exc, urllib.error.HTTPError):
+        return "GitHub ne répond pas. Réessaie plus tard."
+    if isinstance(exc, (urllib.error.URLError, TimeoutError, ConnectionError)):
+        return "Pas de connexion à Internet. Réessaie plus tard."
+    return fallback + " Réessaie plus tard."
 
 
 # =========================================================================== capture de touche
@@ -431,7 +442,7 @@ class SettingsWindow(QWidget):
     saved = Signal()
     closedWithoutSave = Signal()
     captureChanged = Signal(bool)
-    checkUpdates = Signal()
+    updateReady = Signal(object)        # {"info": version.json, "archive": zip téléchargé}
     restartRequested = Signal()
 
     def __init__(self):
@@ -704,7 +715,7 @@ class SettingsWindow(QWidget):
 
         frame, c = card("Langues", "Une dictée = une langue. Le badge de la pastille passe "
                                    "d'une langue cochée à l'autre.")
-        self.chk_lang = {code: QCheckBox(lang_name(code)) for code in ALL_LANGS}
+        self.chk_lang = {code: CheckBox(lang_name(code)) for code in ALL_LANGS}
         grid_l = QGridLayout()
         grid_l.setHorizontalSpacing(18)
         for i, chk in enumerate(self.chk_lang.values()):
@@ -744,9 +755,9 @@ class SettingsWindow(QWidget):
         lay.addWidget(frame)
 
         frame, c = card("Écriture")
-        self.chk_live = QCheckBox("Afficher le texte en direct dans la fenêtre de dictée")
-        self.chk_replace = QCheckBox("À la fin, corriger tout le texte (ponctuation, « euh », "
-                                     "cohérence) avec le modèle de nettoyage")
+        self.chk_live = CheckBox("Afficher le texte en direct dans la fenêtre de dictée")
+        self.chk_replace = CheckBox("À la fin, corriger tout le texte (ponctuation, « euh », "
+                                    "cohérence) avec le modèle de nettoyage")
         c.addWidget(self.chk_live)
         c.addWidget(self.chk_replace)
         self.sld_interval = QSlider(Qt.Horizontal)
@@ -874,7 +885,7 @@ class SettingsWindow(QWidget):
         rem = QPushButton("Supprimer")
         rem.clicked.connect(lambda: self._remove_rows(self.tbl_words))
         c.addLayout(row(add, rem))
-        self.chk_learn = QCheckBox("Apprendre de mes corrections")
+        self.chk_learn = CheckBox("Apprendre de mes corrections")
         c.addWidget(self.chk_learn)
         c.addWidget(hint("Juste après une dictée, si tu corriges à la main un nom ou un mot "
                          "technique mal écrit, Vocalis le retient (une notification "
@@ -1041,7 +1052,7 @@ class SettingsWindow(QWidget):
                                          "langage local corrige la ponctuation et enlève les "
                                          "hésitations.")
         frame, c = card("Nettoyage du texte")
-        self.chk_clean = QCheckBox("Activer le nettoyage (ponctuation, « euh », reprises)")
+        self.chk_clean = CheckBox("Activer le nettoyage (ponctuation, « euh », reprises)")
         c.addWidget(self.chk_clean)
         self.cmb_clean = QComboBox()
         self.cmb_clean.setEditable(True)
@@ -1205,11 +1216,11 @@ class SettingsWindow(QWidget):
         lay.addWidget(frame)
 
         frame, c = card("Pendant la lecture")
-        self.chk_click_stop = QCheckBox("Un clic n'importe où arrête la lecture ; un "
-                                        "double-clic sur un mot la reprend à ce mot")
+        self.chk_click_stop = CheckBox("Un clic n'importe où arrête la lecture ; un "
+                                       "double-clic sur un mot la reprend à ce mot")
         c.addWidget(self.chk_click_stop)
-        self.chk_pause_media = QCheckBox("Mettre en pause la musique et les vidéos (YouTube, "
-                                         "Spotify…) pendant que Vocalis parle")
+        self.chk_pause_media = CheckBox("Mettre en pause la musique et les vidéos (YouTube, "
+                                        "Spotify…) pendant que Vocalis parle")
         c.addWidget(self.chk_pause_media)
         c.addWidget(hint("Alt + clic sur un paragraphe reprend aussi la lecture à cet "
                          "endroit. Le badge de langue de la barre de lecture choisit la "
@@ -1381,21 +1392,34 @@ class SettingsWindow(QWidget):
     def _page_general(self) -> QWidget:
         w, lay = self._page("Général")
         frame, c = card("Démarrage")
-        self.chk_autostart = QCheckBox("Lancer Vocalis au démarrage de Windows")
+        self.chk_autostart = CheckBox("Lancer Vocalis au démarrage de Windows")
         c.addWidget(self.chk_autostart)
         lay.addWidget(frame)
 
         from . import __version__
         frame, c = card("Mises à jour", f"Version installée : Vocalis {__version__}")
-        self.chk_updates = QCheckBox("Proposer automatiquement les nouvelles versions")
+        self.chk_updates = CheckBox("Proposer automatiquement les nouvelles versions")
         c.addWidget(self.chk_updates)
-        btn_upd = QPushButton("Rechercher une mise à jour maintenant")
-        btn_upd.clicked.connect(self.checkUpdates.emit)
-        c.addLayout(row(btn_upd))
+        from .ui_spinner import Mark, Spinner
+        self.btn_upd = QPushButton("Rechercher une mise à jour maintenant")
+        self.btn_upd.clicked.connect(self._check_updates)
+        self.upd_spin = Spinner(16, ACCENT)
+        self.upd_mark = Mark(16)
+        self.lbl_upd = QLabel("")
+        self.lbl_upd.setWordWrap(True)
+        line = row(self.btn_upd, 4, self.upd_spin, self.upd_mark, self.lbl_upd, stretch=False)
+        line.setStretchFactor(self.lbl_upd, 1)
+        c.addLayout(line)
+        self.bar_upd = QProgressBar()
+        self.bar_upd.setRange(0, 100)
+        self.bar_upd.setTextVisible(False)
+        self.bar_upd.setFixedHeight(8)
+        self.bar_upd.hide()
+        c.addWidget(self.bar_upd)
         lay.addWidget(frame)
 
         frame, c = card("Captures d'écran")
-        self.chk_capture = QCheckBox("Montrer les fenêtres de Vocalis sur les captures d'écran")
+        self.chk_capture = CheckBox("Montrer les fenêtres de Vocalis sur les captures d'écran")
         c.addWidget(self.chk_capture)
         c.addWidget(hint("Par défaut, la barre de lecture, le cadre et les bulles n'apparaissent "
                          "pas sur les captures : Vocalis lit lui-même l'écran (lecture d'images, "
@@ -1417,6 +1441,51 @@ class SettingsWindow(QWidget):
         lay.addWidget(frame)
         lay.addStretch(1)
         return w
+
+    def _check_updates(self) -> None:
+        """« Rechercher une mise à jour maintenant » : cercle qui tourne, puis ✓ vert
+        (à jour), barre de téléchargement (nouvelle version) ou message d'erreur."""
+        from . import updates
+        self.btn_upd.setEnabled(False)
+        self.upd_mark.hide()
+        self.bar_upd.hide()
+        self._upd_text("Recherche en cours…")
+        self.upd_spin.start()
+        run_bg(updates.check, self._update_checked)
+
+    def _update_checked(self, res) -> None:
+        from . import __version__, updates
+        if isinstance(res, Exception):
+            self._upd_end("error", _network_error(res, "La recherche n'a pas abouti."))
+            return
+        if res is None:
+            self._upd_end("ok", f"Vocalis est à jour (version {__version__}).")
+            return
+        version = res.get("version", "")
+        self._upd_text(f"Vocalis {version} est disponible : téléchargement…")
+        self.bar_upd.setValue(0)
+        self.bar_upd.show()
+        run_bg(lambda report: updates.download(res, report),
+               lambda data: self._update_downloaded(res, data),
+               on_progress=self.bar_upd.setValue)
+
+    def _update_downloaded(self, info: dict, data) -> None:
+        if isinstance(data, Exception):
+            self._upd_end("error", _network_error(data, "Le téléchargement n'a pas abouti."))
+            return
+        self._upd_end("ok", f"Vocalis {info.get('version', '')} est prêt à être installé.")
+        self.updateReady.emit({"info": info, "archive": data})
+
+    def _upd_text(self, text: str, color: str = "#1D1D1F") -> None:
+        self.lbl_upd.setText(text)
+        self.lbl_upd.setStyleSheet(f"color: {color};")
+
+    def _upd_end(self, kind: str, text: str) -> None:
+        self.upd_spin.stop()
+        self.bar_upd.hide()
+        self.upd_mark.show_kind(kind)
+        self._upd_text(text, "#1E7D3A" if kind == "ok" else "#B25E00")
+        self.btn_upd.setEnabled(True)
 
     @staticmethod
     def _open(path) -> None:

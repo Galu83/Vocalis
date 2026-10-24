@@ -7,13 +7,14 @@ import threading
 
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComboBox,
+from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QComboBox,
                                QDialog, QFrame, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-                               QMessageBox, QPlainTextEdit, QPushButton, QRadioButton,
+                               QMessageBox, QPlainTextEdit, QPushButton,
                                QScrollArea,
                                QSlider, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from . import actions
+from .ui_check import CheckBox, RadioButton
 
 log = logging.getLogger(__name__)
 
@@ -59,9 +60,9 @@ class KeepDialog(QDialog):
         self.name = QLineEdit(actions.suggest_name(question))
         lay.addWidget(self.name)
         lay.addWidget(QLabel("Le résultat :"))
-        self.rb_answer = QRadioButton("💬 S'affiche et il est lu (répondre, résumer…)")
-        self.rb_transform = QRadioButton("✏️ Remplace le texte sélectionné (réécrire, "
-                                         "corriger…)")
+        self.rb_answer = RadioButton("💬 S'affiche et il est lu (répondre, résumer…)")
+        self.rb_transform = RadioButton("✏️ Remplace le texte sélectionné (réécrire, "
+                                        "corriger…)")
         (self.rb_transform if actions.guess_type(question) == "transformer"
          else self.rb_answer).setChecked(True)
         lay.addWidget(self.rb_answer)
@@ -148,21 +149,21 @@ class ActionEditor(QDialog):
                             "appliquées au texte sélectionné."))
 
         lay.addWidget(QLabel("<b>Le résultat</b>"))
-        self.rb_answer = QRadioButton("💬 S'affiche dans la carte (répondre, résumer, expliquer…)")
-        self.rb_transform = QRadioButton("✏️ Remplace le texte sélectionné, après aperçu "
-                                         "(réécrire, corriger, traduire…)")
+        self.rb_answer = RadioButton("💬 S'affiche dans la carte (répondre, résumer, expliquer…)")
+        self.rb_transform = RadioButton("✏️ Remplace le texte sélectionné, après aperçu "
+                                        "(réécrire, corriger, traduire…)")
         grp = QButtonGroup(self)
         grp.addButton(self.rb_answer)
         grp.addButton(self.rb_transform)
         (self.rb_transform if a["type"] == "transformer" else self.rb_answer).setChecked(True)
         lay.addWidget(self.rb_answer)
         lay.addWidget(self.rb_transform)
-        self.chk_read = QCheckBox("Lire le résultat à voix haute")
+        self.chk_read = CheckBox("Lire le résultat à voix haute")
         self.chk_read.setChecked(bool(a.get("lire", True)))
         lay.addWidget(self.chk_read)
 
         # ---------------------------------------------------------------- mode avancé
-        self.chk_expert = QCheckBox("Mode avancé : écrire le prompt complet")
+        self.chk_expert = CheckBox("Mode avancé : écrire le prompt complet")
         self.chk_expert.setChecked(bool(a.get("expert")))
         lay.addWidget(self.chk_expert)
         self.expert = QFrame()

@@ -80,11 +80,9 @@ def check(timeout: float = 8) -> dict | None:
     return None
 
 
-def install(info: dict, progress: Callable[[int, str], None]) -> None:
-    """Télécharge la version et remplace le programme. Lève une erreur si besoin
-    (l'ancienne version est alors remise en place)."""
+def download(info: dict, progress: Callable[[int], None] = lambda _p: None) -> bytes:
+    """Télécharge l'archive de la version (progress : pourcentage de 0 à 100)."""
     url = ZIP_URL.format(ref=info.get("ref") or "refs/heads/" + info.get("branch", "main"))
-    progress(0, "Téléchargement de la nouvelle version…")
     req = urllib.request.Request(url, headers={"User-Agent": f"Vocalis/{__version__}"})
     buf = io.BytesIO()
     with urllib.request.urlopen(req, timeout=60) as r:
@@ -94,7 +92,20 @@ def install(info: dict, progress: Callable[[int, str], None]) -> None:
             buf.write(chunk)
             done += len(chunk)
             if total:
-                progress(min(70, done * 70 // total), "Téléchargement de la nouvelle version…")
+                progress(min(100, done * 100 // total))
+    progress(100)
+    return buf.getvalue()
+
+
+def install(info: dict, progress: Callable[[int, str], None],
+            archive: bytes | None = None) -> None:
+    """Télécharge la version (sauf si l'archive est déjà là) et remplace le programme.
+    Lève une erreur si besoin (l'ancienne version est alors remise en place)."""
+    if archive is None:
+        msg = "Téléchargement de la nouvelle version…"
+        progress(0, msg)
+        archive = download(info, lambda pct: progress(pct * 70 // 100, msg))
+    buf = io.BytesIO(archive)
     progress(75, "Préparation…")
     work = ROOT / "_maj"
     shutil.rmtree(work, ignore_errors=True)
